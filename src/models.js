@@ -113,10 +113,10 @@ export const stall = () => {
   return b.mesh();
 };
 
-export const coop = (lv) => {
+export const coop = (lv, leaf) => {
   const b = new B();
   b.box(0xb98a52, [0, 0.55, 0], [1.9, 1.1, 1.4]);
-  b.cone(lv > 1 ? 0xb8452f : 0x6b4a36, [0, 1.5, 0], 1.55, 0.8, 4, [0, Math.PI / 4, 0]);
+  b.cone(leaf ? 0x86a842 : lv > 1 ? 0xb8452f : 0x6b4a36, [0, 1.5, 0], leaf ? 1.75 : 1.55, leaf ? 0.95 : 0.8, leaf ? 8 : 4, [0, Math.PI / 4, 0]);
   b.box(0x3a2a1c, [0.5, 0.4, 0.71], [0.45, 0.6, 0.04]);
   b.box(0xe8d9b0, [-0.5, 0.7, 0.71], [0.4, 0.4, 0.04]);
   b.box(0x8a6a4a, [0.5, 0.2, 1.1], [0.8, 0.06, 0.6], [0.35, 0, 0]);
@@ -152,26 +152,40 @@ export const rod = () => {
   return b.mesh();
 };
 
-// ---- Con vật ----
-export const chicken = (white) => {
-  const b = new B(), body = white ? 0xf6f0e2 : 0xc9733a;
-  b.ball(body, [0, 0.28, 0], [0.22, 0.2, 0.28], 6);
-  b.ball(body, [0, 0.52, 0.2], [0.11, 0.12, 0.11], 5);
+// ---- Con vật (màu theo gen, trống có mào lớn) ----
+export const chicken = (color, male) => {
+  const b = new B();
+  b.ball(color, [0, 0.28, 0], [0.22, 0.2, 0.28], 6);
+  b.ball(color, [0, 0.52, 0.2], [0.11, 0.12, 0.11], 5);
   b.cone(0xf0a020, [0, 0.5, 0.33], 0.04, 0.1, 4, [Math.PI / 2, 0, 0]);
-  b.box(0xd8332a, [0, 0.65, 0.2], [0.03, 0.07, 0.08]);
-  b.cone(body, [0, 0.4, -0.3], 0.1, 0.25, 4, [-0.9, 0, 0]);
+  b.box(0xd8332a, [0, male ? 0.7 : 0.65, 0.2], male ? [0.04, 0.12, 0.14] : [0.03, 0.07, 0.08]);
+  if (male) b.box(0xd8332a, [0, 0.42, 0.3], [0.04, 0.08, 0.04]);
+  b.cone(color, [0, 0.4, -0.3], male ? 0.14 : 0.1, male ? 0.38 : 0.25, 4, [-0.9, 0, 0]);
   b.box(0xf0a020, [0.07, 0.07, 0.02], [0.03, 0.14, 0.03]); b.box(0xf0a020, [-0.07, 0.07, 0.02], [0.03, 0.14, 0.03]);
   return b.mesh();
 };
-export const duck = () => {
+export const duck = (color, male) => {
   const b = new B();
-  b.ball(0xf4e9c0, [0, 0.22, 0], [0.2, 0.17, 0.3], 6);
-  b.ball(0x2f7a4f, [0, 0.45, 0.2], [0.11, 0.11, 0.11], 5);
+  b.ball(color, [0, 0.22, 0], [0.2, 0.17, 0.3], 6);
+  b.ball(male ? 0x2f7a4f : color, [0, 0.45, 0.2], [0.11, 0.11, 0.11], 5);
   b.box(0xf0a020, [0, 0.42, 0.34], [0.12, 0.04, 0.12]);
-  b.cone(0xf4e9c0, [0, 0.3, -0.3], 0.09, 0.2, 4, [-1.2, 0, 0]);
+  b.cone(color, [0, 0.3, -0.3], 0.09, 0.2, 4, [-1.2, 0, 0]);
   b.box(0xf0a020, [0.07, 0.04, 0.02], [0.05, 0.08, 0.1]); b.box(0xf0a020, [-0.07, 0.04, 0.02], [0.05, 0.08, 0.1]);
   return b.mesh();
 };
+
+// ---- Công trình mới ----
+export const nest = () => new B().cyl(0xd9b45a, [0, 0.1, 0], 0.38, 0.46, 0.2, 8).cyl(0xc9a24a, [0, 0.2, 0], 0.3, 0.3, 0.05, 8).ball(0xf6f0e2, [0, 0.27, 0], [0.1, 0.07, 0.08], 5).mesh();
+export const lu = () => new B().cyl(0x9a6b3e, [0, 0.45, 0], 0.36, 0.28, 0.9, 8).cyl(0x7a4f2b, [0, 0.92, 0], 0.4, 0.4, 0.06, 8).cyl(0x4aa8d8, [0, 0.9, 0], 0.3, 0.3, 0.03, 8).mesh();
+export const manure = () => new B().ball(0x6a4a2a, [0, 0.2, 0], [0.6, 0.28, 0.5], 5).ball(0x7a5a30, [0.35, 0.14, 0.22], [0.3, 0.2, 0.3], 5).ball(0x5f8f3a, [-0.2, 0.42, 0], [0.16, 0.1, 0.16], 4).box(0xa88a50, [0.5, 0.25, -0.3], [0.5, 0.05, 0.05], [0, 0.6, 0.3]).mesh();
+export const monkeyBridge = () => {
+  const b = new B(), L = 4.7;
+  for (let i = 0; i < 4; i++) b.cyl(0xb8a050, [L * (i + 0.5) / 4, 0.32 + (i % 2) * 0.02, 0], 0.06, 0.06, L / 4 + 0.08, 5, [0, 0, Math.PI / 2]);
+  b.cyl(0xa89040, [L / 2, 0.95, 0.4], 0.04, 0.04, L, 5, [0, 0, Math.PI / 2]);
+  [0, L / 2, L].forEach((x) => { b.cyl(0x8a6a3a, [x, 0.3, 0], 0.07, 0.07, 1.2, 5); b.cyl(0x8a6a3a, [x, 0.5, 0.4], 0.05, 0.05, 1.0, 5); });
+  return b.mesh();
+};
+export const platform = () => new B().box(0x7a5a38, [0, -0.1, 0], [2.1, 0.24, 1.5]).mesh();
 
 // ---- Cây trồng theo giai đoạn 0..2 ----
 export const plant = (crop, stage) => {

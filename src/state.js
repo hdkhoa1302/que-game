@@ -1,4 +1,6 @@
-import { CROPS, EGGS, QUESTS, TRAP_CAP, MIN } from './data.js';
+import { CROPS, QUESTS, TRAP_CAP, MIN, START_STEP, SP } from './data.js';
+import { advance, growBed, addAnimal, nestCap as nestCapOf, dayAt } from './sim.js';
+import { mulberry32, founder } from './genes.js';
 
 const KEY = 'que-game-v1';
 
@@ -8,12 +10,20 @@ const fresh = () => ({
   rod: 1, house: 1, coop: 1,
   trapsN: 1, bedsN: 3,
   traps: [], // {x, z, start, ms}; start=0: lờ đang rảnh
-  beds: [null, null, null, null, null, null], // {crop, progress, last, waterUntil}
-  chickens: 2, ducks: 1,
-  fedUntil: 0, nest: { trungga: 0, trungvit: 0 }, last: Date.now(),
+  beds: [null, null, null, null, null, null], // {crop, progress, last, waterUntil, fert, flood}
+  animals: [], eggs: [], dex: {}, nextId: 1, ev: [],
+  res: {}, builds: { nen: {} }, lu: 0, picked: {},
+  fedUntil: 0, last: Date.now(), t0: Date.now(),
+  world: { step: START_STEP, base: START_STEP, seed: (Math.random() * 2 ** 31) | 0, weather: 'nang' },
   quest: 0, won: false, sound: true,
-  stats: { fish: 0, sold: 0, planted: 0, fed: 0, trapsSet: 0, harvested: 0 },
+  stats: { fish: 0, sold: 0, planted: 0, fed: 0, trapsSet: 0, harvested: 0, picked: 0, built: 0, hatched: 0 },
 });
+
+// Đàn ban đầu: gà 1 trống 2 mái, vịt 1 trống 1 mái. Bản lưu cũ chuyển số lượng cũ thành cá thể.
+const seedHerd = (S, nc, nd) => {
+  const rng = mulberry32(S.world.seed ^ 0x5eed), day = dayAt(S.world.step);
+  [['chicken', nc], ['duck', nd]].forEach(([sp, n]) => { for (let i = 0; i < n; i++) addAnimal(S, sp, i === 0 && n > 1 ? 'm' : 'f', founder(rng), day - 3 - Math.floor(rng() * 8),false); });
+};
 
 export const S = (() => {
   try {
@@ -21,17 +31,20 @@ export const S = (() => {
     if (raw && raw.coins != null) {
       const DEF = [[4.1, 0.9], [8.6, 1.5], [9.9, -1.9], [6.7, -3.9]]; // bản lưu cũ: lờ cố định
       raw.traps = (raw.traps || []).filter(Boolean).map((t, i) => (t.x == null ? { x: DEF[i][0], z: DEF[i][1], ...t } : t));
-      return { ...fresh(), ...raw };
+      const s = { ...fresh(), ...raw };
+      if (!raw.animals) { s.animals = []; s.eggs = []; seedHerd(s, raw.chickens ?? 2, raw.ducks ?? 1); delete s.chickens; delete s.ducks; delete s.nest; }
+      if (!raw.world) { s.t0 = raw.t0 || Date.now(); s.world = fresh().world; s.world.step = s.world.base = START_STEP; s.t0 = Date.now(); }
+      return s;
     }
   } catch {}
-  return fresh();
+  const s = fresh(); seedHerd(s, 3, 2); return s;
 })();
 
 export const save = () => {
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {}
 };
 
-export const nestCap = () => 6 * S.coop;
+export const nestCap = () => nestCapOf(S);
 export const add = (bucket, id, n = 1) => { S.inv[bucket][id] = (S.inv[bucket][id] || 0) + n; };
 
 export const stageOf = (b) => {
@@ -41,25 +54,13 @@ export const stageOf = (b) => {
 };
 export const bedReady = (b) => b && stageOf(b) === 2;
 
-const growBed = (b, now) => {
-  const dt = Math.max(0, now - b.last);
-  const wet = Math.max(0, Math.min(dt, b.waterUntil - b.last));
-  const g = CROPS.find((c) => c.id === b.crop).grow;
-  b.progress = Math.min(g, b.progress + wet + (dt - wet) * 0.25); // khô thì lớn chậm 25%
-  b.last = now;
-};
-
 export const trapLeft = (t, now = Date.now()) => (t && t.start ? Math.max(0, t.start + Math.min(t.ms, TRAP_CAP) - now) : 0);
 export const trapState = (t, now = Date.now()) => (!t.start ? 'idle' : trapLeft(t, now) ? 'run' : 'ready');
 
-// Đẩy thời gian về hiện tại: cây lớn, gà vịt đẻ. Gọi định kỳ và lúc mở game (bù offline).
+// Đẩy thế giới tới hiện tại: các bước mùa/gà vịt, rồi cây lớn. Gọi định kỳ và lúc mở game (bù offline).
 export const tick = (now = Date.now()) => {
+  advance(S, now);
   S.beds.forEach((b) => b && growBed(b, now));
-  const fedDt = Math.max(0, Math.min(now, S.fedUntil) - S.last);
-  if (fedDt > 0) {
-    const cnt = { trungga: S.chickens, trungvit: S.ducks };
-    for (const e of EGGS) S.nest[e.id] = Math.min(nestCap(), S.nest[e.id] + (fedDt / e.lay) * cnt[e.id]);
-  }
   S.last = now;
 };
 
@@ -74,7 +75,7 @@ export const reset = () => { localStorage.removeItem(KEY); location.reload(); };
 export const offlineSummary = (before) => {
   const ts = S.traps.filter((t) => trapState(t) === 'ready').length;
   const bs = S.beds.filter(bedReady).length;
-  const eggs = Math.floor(S.nest.trungga + S.nest.trungvit);
+  const eggs = S.eggs.length;
   const away = Date.now() - before;
   if (away < 2 * MIN) return '';
   return [ts && `${ts} lờ đã đầy`, bs && `${bs} luống rau chín`, eggs && `${eggs} quả trứng trong ổ`].filter(Boolean).join(' · ');

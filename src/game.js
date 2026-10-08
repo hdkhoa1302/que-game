@@ -1,5 +1,7 @@
 import { S, save, tick, add, stageOf, bedReady, trapLeft, trapState, nestCap, questDone, reset } from './state.js';
-import { FISH, CROPS, EGGS, GRAIN, BAIT, TRAP_TIMES, UP, COOP_CAP, ANIMAL, QUESTS, priceMul, MIN } from './data.js';
+import { FISH, CROPS, EGGS, GRAIN, BAIT, TRAP_TIMES, UP, COOP_CAP, ANIMAL, QUESTS, priceMul, MIN, PHASES, WEATHER, SP, RES, RES_CAP, BUILD, LU_CAP, TRAP_MOD } from './data.js';
+import { phaseAt, dayAt, lifeStage, ofSp, capOf, hatchLimit, addAnimal, dexAll, isFlooded, levelAt, stepF } from './sim.js';
+import { founder, mulberry32, avg, colorOf, sizeGroup } from './genes.js';
 import { sfx, buzz, unlock } from './sfx.js';
 
 const $ = (s) => document.querySelector(s);
@@ -37,10 +39,12 @@ const hud = () => {
   // chip báo việc cần làm: chạm là nhân vật tự đi tới
   const chips = [], rb = S.beds.map((b, i) => (i < S.bedsN && bedReady(b) ? i : -1)).filter((i) => i >= 0);
   if (rb.length) chips.push(`<button data-go="bed:${rb[0]}">${CROPS.find((c) => c.id === S.beds[rb[0]].crop).icon} ${rb.length} chín</button>`);
-  const eg = Math.floor(S.nest.trungga + S.nest.trungvit); if (eg >= 1) chips.push(`<button data-go="coop:0">🥚 ${eg}</button>`);
+  const eg = S.eggs.filter((e) => !e.fertile).length; if (eg >= 1) chips.push(`<button data-go="coop:0">🥚 ${eg}</button>`);
+  const sick = S.animals.filter((a) => a.sickUntil).length; if (sick) chips.push(`<button data-a="herd">🤒 ${sick} ốm</button>`);
+  const fl = S.beds.some((b, i) => b && isFlooded(S, i)); if (fl) chips.push('<button data-go="bed:3">🌊 Ngập vườn</button>');
   const tr = S.traps.map((t, i) => (trapState(t) === 'ready' ? i : -1)).filter((i) => i >= 0);
   if (tr.length) chips.push(`<button data-go="trap:${tr[0]}">🪤 ${tr.length} đầy</button>`);
-  if (S.fedUntil < Date.now() && !chips.length && S.stats.fed) chips.push('<button data-go="coop:0">🌾 Gà vịt đói</button>');
+  if (S.fedUntil < Date.now() && S.animals.length && !chips.length) chips.push('<button data-go="coop:0">🌾 Gà vịt đói</button>');
   $('#chips').innerHTML = chips.join('');
   $('#bar [data-open=trap] i').textContent = tr.length || '';
 };
@@ -67,7 +71,8 @@ export const after = () => {
 
 // ---------- Cá ----------
 const pickFish = () => {
-  const w = FISH.map((f, i) => f.weight * (1 + (S.rod - 1) * i * 0.35));
+  const ph = phaseAt(S.world.step), far = world.onBridge?.();
+  const w = FISH.map((f, i) => (f.season !== undefined ? (ph === f.season ? 40 : 0) : f.weight * (1 + (S.rod - 1) * i * 0.35) * (far ? 1 + 0.25 * i : 1)));
   let r = Math.random() * w.reduce((a, b) => a + b, 0);
   for (let i = 0; i < FISH.length; i++) if ((r -= w[i]) <= 0) return FISH[i];
   return FISH[0];
@@ -89,22 +94,55 @@ const trapPanel = (i) => () => {
 };
 
 // ---------- Chuồng ----------
-const cap = () => COOP_CAP[S.coop - 1];
+const cnt = (sp) => S.animals.filter((a) => a.sp === sp).length;
+const STAGE = { young: 'Con non', adult: 'Trưởng thành', old: 'Già' };
+const swatch = (a) => `<span style="display:inline-block;width:13px;height:13px;border-radius:50%;vertical-align:-1px;background:#${SP[a.sp].hex[colorOf(a.genome)].toString(16).padStart(6, '0')};border:2px solid #0002"></span>`;
+const price = (a) => Math.round(ANIMAL[a.sp] * 0.6 * (1 + avg(a.genome, 'size') / 18) * (lifeStage(a, dayAt(S.world.step)) === 'young' ? 0.5 : 1));
 const coopPanel = () => {
-  const fed = S.fedUntil - Date.now(), c = cap();
-  const eg = (id) => Math.floor(S.nest[id]);
+  const fed = S.fedUntil - Date.now(), c = COOP_CAP[S.coop - 1];
+  const eg = (f) => S.eggs.filter((e) => e.fertile === f).length;
   return `<h2>🐔 Chuồng gà vịt</h2>
-  <p>${S.chickens} gà · ${S.ducks} vịt (tối đa ${c.chicken} gà, ${c.duck} vịt). ${fed > 0 ? `Đang no, còn <b data-t="${S.fedUntil}">${fmt(fed)}</b>.` : 'Đang đói — rải thóc thì mới đẻ trứng.'}</p>
+  <p>${cnt('chicken')} gà · ${cnt('duck')} vịt (chuồng chứa ${c.chicken} gà, ${c.duck} vịt; con non được vượt tới ${hatchLimit(S, 'chicken')}/${hatchLimit(S, 'duck')}). ${fed > 0 ? `Đang no, còn <b>${fmt(fed)}</b>.` : 'Đang đói: cho ăn thì mới đẻ trứng.'}</p>
   <div class="row"><div class="ic">🌾</div><div class="tx">Rải thóc<small>Có ${S.inv.grain} thóc · no ${GRAIN.feed / MIN} phút</small></div><button class="btn" data-a="feed">Rải</button></div>
-  <div class="row"><div class="ic">🥚</div><div class="tx">Trong ổ: ${eg('trungga')} trứng gà, ${eg('trungvit')} trứng vịt<small>Ổ chứa tối đa ${nestCap()} mỗi loại</small></div><button class="btn gold" data-a="eggs" ${eg('trungga') + eg('trungvit') < 1 ? 'disabled' : ''}>Thu</button></div>
-  <div class="row"><div class="ic">🐔</div><div class="tx">Mua gà<small>${coin(ANIMAL.chicken)}</small></div><button class="btn" data-a="buy" data-v="chicken" ${S.chickens >= c.chicken || S.coins < ANIMAL.chicken ? 'disabled' : ''}>Mua</button></div>
-  <div class="row"><div class="ic">🦆</div><div class="tx">Mua vịt<small>${coin(ANIMAL.duck)}</small></div><button class="btn" data-a="buy" data-v="duck" ${S.ducks >= c.duck || S.coins < ANIMAL.duck ? 'disabled' : ''}>Mua</button></div>`;
+  <div class="row"><div class="ic">🐌</div><div class="tx">Cho ăn ốc / rau<small>Có ${S.res.oc || 0} ốc, ${Object.values(S.inv.crop).reduce((a, b) => a + b, 0)} rau · no ${Math.round(GRAIN.feed * 0.7 / MIN * 10) / 10} phút</small></div><button class="btn" data-a="feedfood">Cho ăn</button></div>
+  <div class="row"><div class="ic">🥚</div><div class="tx">Trong ổ: ${eg(false)} trứng thường, ${eg(true)} trứng có phôi<small>${S.builds.oap ? 'Có ổ ấp: trứng có phôi nở sau ~1 ngày.' : 'Chưa có ổ ấp rơm: chỉ 60% trứng có phôi nở.'} Ổ chứa tối đa ${nestCap()} mỗi loại.</small></div><button class="btn gold" data-a="eggs" ${eg(false) < 1 ? 'disabled' : ''}>Thu</button></div>
+  ${eg(true) ? `<div class="row"><div class="ic">🍳</div><div class="tx">Bán cả trứng có phôi<small>Mất cơ hội nở con</small></div><button class="btn gray" data-a="eggsall">Thu hết</button></div>` : ''}
+  <div class="row"><div class="ic">📋</div><div class="tx">Xem đàn và gen<small>Chọn con tốt để giữ, bán con yếu</small></div><button class="btn" data-a="herd">Xem</button></div>
+  <div class="row"><div class="ic">📖</div><div class="tx">Sổ giống<small>${Object.keys(S.dex).length}/${dexAll().length} kiểu đã gặp</small></div><button class="btn" data-a="dex">Mở</button></div>
+  <div class="row"><div class="ic">🐔</div><div class="tx">Mua gà<small>${coin(ANIMAL.chicken)}</small></div><button class="btn" data-a="buy" data-v="chicken" ${cnt('chicken') >= c.chicken || S.coins < ANIMAL.chicken ? 'disabled' : ''}>Mua</button></div>
+  <div class="row"><div class="ic">🦆</div><div class="tx">Mua vịt<small>${coin(ANIMAL.duck)}</small></div><button class="btn" data-a="buy" data-v="duck" ${cnt('duck') >= c.duck || S.coins < ANIMAL.duck ? 'disabled' : ''}>Mua</button></div>`;
+};
+const herdPanel = () => {
+  const day = dayAt(S.world.step), L = [...S.animals].sort((a, b) => a.sp.localeCompare(b.sp) || a.born - b.born);
+  return `<h2>📋 Đàn gà vịt (${L.length})</h2><p>Con có <b>đề kháng</b> cao sống sót tốt mùa mưa, vịt <b>chịu nước</b> cao hợp mùa nước nổi. Giữ con tốt, bán con yếu.</p>` + (L.map((a) => {
+    const st = lifeStage(a, day);
+    return `<div class="row"><div class="ic">${SP[a.sp].icon}</div><div class="tx">${swatch(a)} ${SP[a.sp].colors[colorOf(a.genome)]} ${a.sex === 'm' ? '♂' : '♀'} · ${STAGE[st]}${a.sickUntil ? ' 🤒' : ''}<small>Cỡ ${avg(a.genome, 'size').toFixed(1)} · Trứng ${avg(a.genome, 'eggs').toFixed(1)} · Kháng ${avg(a.genome, 'resist').toFixed(1)} · Nước ${avg(a.genome, 'water').toFixed(1)}</small></div><button class="btn" data-a="view" data-v="${a.id}">Xem</button></div>`;
+  }).join('') || '<p>Chuồng đang trống. Mua gà vịt ở menu chuồng.</p>') + `<button class="btn gray big" data-a="coopback" style="margin-top:8px">Về chuồng</button>`;
+};
+const GENE_ROWS = [['size', 'Cỡ thể'], ['eggs', 'Đẻ trứng'], ['resist', 'Đề kháng'], ['water', 'Chịu nước']];
+const animalCard = (id) => () => {
+  const a = S.animals.find((x) => x.id === id);
+  if (!a) return '<h2>Con này không còn trong đàn</h2><button class="btn gray big" data-a="herd">Về đàn</button>';
+  const day = dayAt(S.world.step), age = day - a.born, st = lifeStage(a, day);
+  return `<h2>${SP[a.sp].icon} ${SP[a.sp].name} ${SP[a.sp].colors[colorOf(a.genome)].toLowerCase()} ${a.sex === 'm' ? '♂ (trống)' : '♀ (mái)'}</h2>
+  <p>${swatch(a)} ${STAGE[st]} · ${age} ngày tuổi (sống tối đa 18 ngày)${a.sickUntil ? ' · <b>đang ốm 🤒</b>' : ''} · cỡ nhóm ${sizeGroup(a.genome)}</p>
+  ${GENE_ROWS.map(([k, n]) => `<div class="gene"><span>${n}</span><div class="bar"><i style="width:${(avg(a.genome, k) / 9) * 100}%"></i></div><b>${avg(a.genome, k).toFixed(1)}</b></div>`).join('')}
+  <p style="margin-top:10px">Gen ghép từ bố mẹ, mỗi lần sinh có khoảng 2% đột biến nhẹ.</p>
+  <button class="btn red big" data-a="sellanimal" data-v="${a.id}">Bán · ${coin(price(a))}</button>
+  <p><button class="btn gray big" data-a="herd">Về đàn</button></p>`;
+};
+const dexPanel = () => {
+  const all = dexAll(), got = all.filter((k) => S.dex[k]).length;
+  return `<h2>📖 Sổ giống (${got}/${all.length})</h2><p>Mỗi kiểu (loài, màu, cỡ) gặp lần đầu thưởng 🪙15. Lai và chọn lọc để gặp đủ.</p>` + Object.keys(SP).map((sp) =>
+    `<div class="row"><div class="ic">${SP[sp].icon}</div><div class="tx">${SP[sp].name}<small>` + [0, 1, 2, 3].map((c) => `${SP[sp].colors[c]}: ` + ['S', 'M', 'L'].map((z) => (S.dex[`${sp}:${c}:${z}`] ? `✅${z}` : `▫️${z}`)).join(' ')).join(' · ') + '</small></div></div>').join('') +
+    '<button class="btn gray big" data-a="coopback" style="margin-top:8px">Về chuồng</button>';
 };
 
 // ---------- Luống rau ----------
 const bedPanel = (i) => () => {
   if (i >= S.bedsN) return `<h2>🌱 Luống ${i + 1}</h2><p>Chưa mở. Mở thêm luống ở 🏠 Nhà.</p>`;
-  const b = S.beds[i];
+  const b = S.beds[i], flooded = isFlooded(S, i);
+  if (flooded) return `<h2>🌊 Luống ${i + 1} đang ngập</h2><p>Nước nổi dâng lên vườn thấp. Cây ngập quá 3 phút sẽ hỏng. Đắp <b>nền cao</b> (🏠 Nhà → Xây dựng) để canh tác quanh năm.</p><button class="btn big gold" data-a="openbuild">Mở Xây dựng</button>`;
   if (!b) {
     return `<h2>🌱 Gieo hạt</h2><p>Nhớ tưới nước: khô thì cây lớn chậm.</p>` + CROPS.map((c) =>
       `<div class="row"><div class="ic">${c.icon}</div><div class="tx">${c.name}<small>Hạt ${coin(c.cost)} · lớn ~${Math.round(c.grow / MIN * 10) / 10} phút · bán ${coin(c.price)}/cây</small></div><button class="btn" data-a="plant" data-v="${i}:${c.id}" ${S.coins < c.cost ? 'disabled' : ''}>Gieo</button></div>`).join('');
@@ -114,21 +152,24 @@ const bedPanel = (i) => () => {
   const wet = b.waterUntil > Date.now(), pct = (b.progress / c.grow) * 100;
   const left = (c.grow - b.progress) / (wet ? 1 : 0.25);
   return `<h2>${c.icon} ${c.name}</h2><div class="bar"><i style="width:${pct}%"></i></div>
-  <p>${wet ? `💧 Đang đủ nước. Còn khoảng ${fmt(left)}.` : `🏜️ Đất khô, cây lớn chậm. Tưới để nhanh gấp 4 lần.`}</p>
+  <p>${wet ? `💧 Đang đủ nước. Còn khoảng ${fmt(left)}.` : `🏜️ Đất khô, cây lớn chậm. Tưới để nhanh gấp 4 lần.`}${b.fert ? ' 🪱 Đã bón phân ủ (lớn x1,5).' : ''}${phaseAt(S.world.step) === 0 ? ` Mùa khô: ao cạn, cần nước lu (${S.lu}/${LU_CAP * (S.builds.lu || 0)}).` : ''}</p>
   <button class="btn big" data-a="water" data-v="${i}">💧 Tưới nước</button>
+  ${!b.fert && S.res.phanu ? `<p><button class="btn big gold" data-a="fert" data-v="${i}">🪱 Bón phân ủ (có ${S.res.phanu})</button></p>` : ''}
   <p style="text-align:center"><button class="btn gray" data-a="pull" data-v="${i}">Nhổ bỏ</button></p>`;
 };
 
 // ---------- Chợ ----------
 const trend = (id) => { const m = priceMul(id); return m > 1.05 ? '▲' : m < 0.95 ? '▼' : ''; };
+const bag = (b) => (b === 'res' ? S.res : S.inv[b]);
 const sellable = () => [
   ...FISH.map((f) => ({ b: 'fish', ...f })), ...CROPS.map((c) => ({ b: 'crop', ...c })), ...EGGS.map((e) => ({ b: 'egg', ...e })),
-].filter((x) => S.inv[x.b][x.id] > 0);
+  ...Object.entries(RES).filter(([, r]) => r.price > 0).map(([id, r]) => ({ b: 'res', id, ...r })),
+].filter((x) => bag(x.b)[x.id] > 0);
 const unit = (x) => Math.round(x.price * priceMul(x.id));
 const market = () => {
-  const items = sellable(), total = items.reduce((a, x) => a + unit(x) * S.inv[x.b][x.id], 0);
+  const items = sellable(), total = items.reduce((a, x) => a + unit(x) * bag(x.b)[x.id], 0);
   return `<h2>🧺 Chợ quê</h2><p>Giá đổi theo ngày. ▲ cao hơn thường, ▼ thấp hơn.</p>` +
-    (items.length ? items.map((x) => `<div class="row"><div class="ic">${x.icon}</div><div class="tx">${x.name} ×${S.inv[x.b][x.id]}<small>${coin(unit(x))}/con ${trend(x.id)}</small></div><button class="btn" data-a="sell" data-v="${x.b}:${x.id}">Bán hết</button></div>`).join('') +
+    (items.length ? items.map((x) => `<div class="row"><div class="ic">${x.icon}</div><div class="tx">${x.name} ×${bag(x.b)[x.id]}<small>${coin(unit(x))}/con ${trend(x.id)}</small></div><button class="btn" data-a="sell" data-v="${x.b}:${x.id}">Bán hết</button></div>`).join('') +
       `<button class="btn big gold" data-a="sellall">Bán tất cả · ${coin(total)}</button>` : '<p>Chưa có gì để bán. Đi câu cá, thu rau, nhặt trứng nhé!</p>') +
     `<div class="row" style="margin-top:8px"><div class="ic">🌾</div><div class="tx">Mua thóc (có ${S.inv.grain})<small>${coin(GRAIN.cost)}/phần</small></div><button class="btn" data-a="grain" data-v="1" ${S.coins < GRAIN.cost ? 'disabled' : ''}>+1</button><button class="btn" data-a="grain" data-v="5" ${S.coins < GRAIN.cost * 5 ? 'disabled' : ''}>+5</button></div>`;
 };
@@ -141,13 +182,28 @@ const upRow = (ic, name, desc, lv, max, cost, key) => {
 };
 const house = () => {
   const q = QUESTS[S.quest];
-  return `<h2>🏠 Nhà quê</h2><p>${q ? `<b>Nhiệm vụ:</b> ${q.text} (thưởng ${coin(q.reward)})` : 'Bạn đã hoàn thành mọi nhiệm vụ!'}</p>` +
+  const ph = phaseAt(S.world.step), W = WEATHER.find((x) => x.id === S.world.weather) || WEATHER[0];
+  return `<h2>🏠 Nhà quê</h2><p>${PHASES[ph].icon} <b>${PHASES[ph].name}</b> · ${W.icon} ${W.name}. ${PHASES[ph].tip}</p><p>${q ? `<b>Nhiệm vụ:</b> ${q.text} (thưởng ${coin(q.reward)})` : 'Bạn đã hoàn thành mọi nhiệm vụ!'}</p>` +
     upRow('🏠', 'Sửa nhà', 'Nhà đẹp hơn, mục tiêu cuối game', S.house, 3, UP.house[S.house] ?? 0, 'house') +
     upRow('🎣', 'Cần câu', 'Thanh kéo to hơn, dễ ra cá hiếm', S.rod, 3, UP.rod[S.rod] ?? 0, 'rod') +
     upRow('🪤', 'Thêm lờ', 'Thêm một chỗ đặt lờ bên ao', S.trapsN, 4, UP.trap[S.trapsN] ?? 0, 'trap') +
     upRow('🌱', 'Thêm luống rau', 'Thêm một luống trong vườn', S.bedsN, 6, UP.bed[S.bedsN] ?? 0, 'bed') +
     upRow('🐔', 'Mở rộng chuồng', 'Nuôi được nhiều gà vịt hơn', S.coop, 3, UP.coop[S.coop] ?? 0, 'coop') +
+    `<div class="row"><div class="ic">🔨</div><div class="tx">Xây dựng<small>Chuồng tre lá, ổ ấp, lu nước, ủ phân, cầu khỉ, nền cao</small></div><button class="btn gold" data-a="openbuild">Mở</button></div>` +
+    `<div class="row"><div class="ic">📖</div><div class="tx">Sổ giống<small>${Object.keys(S.dex).length}/${dexAll().length} kiểu gà vịt</small></div><button class="btn" data-a="dex">Mở</button></div>` +
     `<p style="margin-top:12px"><button class="btn gray" data-a="music">${S.sound ? '🔊 Tắt' : '🔇 Bật'} âm thanh</button> <button class="btn red" data-a="reset">Chơi lại từ đầu</button></p>`;
+};
+
+// ---------- Xây dựng ----------
+const costTxt = (cost, coins) => Object.entries(cost).map(([k, n]) => `<span style="${(S.res[k] || 0) >= n ? '' : 'color:#d8523f'}">${RES[k].icon}${S.res[k] || 0}/${n}</span>`).join(' ') + ` · ${coin(coins)}`;
+const canBuild = (b) => S.coins >= b.coins && Object.entries(b.cost).every(([k, n]) => (S.res[k] || 0) >= n);
+const buildPanel = () => {
+  const bag = Object.entries(S.res).filter(([, n]) => n > 0).map(([k, n]) => `${RES[k].icon}${n}`).join(' ') || 'trống';
+  const row = (key, label, done, data) => { const b = BUILD[key]; return `<div class="row"><div class="ic">${b.icon}</div><div class="tx">${label || b.name}<small>${b.desc}<br>${costTxt(b.cost, b.coins)}</small></div><button class="btn ${done ? 'gray' : 'gold'}" data-a="build" data-v="${data}" ${done || !canBuild(b) ? 'disabled' : ''}>${done ? 'Đã xây' : 'Xây'}</button></div>`; };
+  return `<h2>🔨 Xây dựng</h2><p>Túi nguyên liệu: ${bag}. Nhặt ngoài cảnh: 🌴🎋🌾 quanh năm, 🐌 từ đầu mưa, 🌼🪷 mùa nước nổi, 🧱 mùa khô. Mỗi điểm nhặt mọc lại mỗi ngày.</p>` +
+    row('chuong', null, S.builds.chuong, 'chuong') + row('oap', null, S.builds.oap, 'oap') +
+    row('lu', `Lu nước mưa (${S.builds.lu || 0}/2)`, (S.builds.lu || 0) >= 2, 'lu') + row('phan', null, S.builds.phan, 'phan') + row('cau', null, S.builds.cau, 'cau') +
+    [3, 4, 5].map((i) => row('nen', `Nền cao luống ${i + 1}`, S.builds.nen?.[i], `nen:${i}`)).join('');
 };
 
 // ---------- Câu cá ----------
@@ -209,26 +265,55 @@ const ACT = {
   pickup(v) { S.traps.splice(+v, 1); sfx.pop(); toast('Đã nhấc lờ lên. Bấm 🪤 để đặt lại.'); close(); },
   unplace() { placing = false; P = null; sync(); },
   takeTrap(v) {
-    const i = +v, t = S.traps[i], n = trapYield(Math.min(Date.now() - t.start, t.ms)), got = {};
+    const i = +v, t = S.traps[i], mod = (S.world.weather === 'chuong' ? TRAP_MOD.chuong : 1) * (phaseAt(S.world.step) === 0 ? TRAP_MOD.kho : 1), n = Math.max(1, Math.round(trapYield(Math.min(Date.now() - t.start, t.ms)) * mod)), got = {};
     for (let k = 0; k < n; k++) { const f = pickFish(); add('fish', f.id); got[f.name] = (got[f.name] || 0) + 1; S.stats.fish++; }
     Object.assign(t, { start: 0, ms: 0 }); sfx.ok(); toast(`Thu ${n} con: ` + Object.entries(got).map(([a, b]) => `${a} ×${b}`).join(', '), 3500); close();
+  },
+  feedfood() {
+    const crop = Object.keys(S.inv.crop).find((k) => S.inv.crop[k] > 0);
+    if (S.res.oc > 0) S.res.oc--; else if (crop) S.inv.crop[crop]--; else { toast('Chưa có ốc hay rau để cho ăn'); return; }
+    tick(); S.fedUntil = Math.max(S.fedUntil, Date.now()) + GRAIN.feed * 0.7; S.stats.fed++; sfx.cluck(); toast('Gà vịt đang ăn 🐌');
   },
   feed() {
     if (S.inv.grain < 1) { toast('Hết thóc — mua ở chợ 🧺'); return; }
     tick(); S.inv.grain--; S.fedUntil = Math.max(S.fedUntil, Date.now()) + GRAIN.feed; S.stats.fed++; sfx.cluck(); toast('Gà vịt đang ăn 🌾');
   },
-  eggs() {
+  eggs() { // chỉ thu trứng thường; trứng có phôi giữ lại để ấp
     let n = 0;
-    for (const e of EGGS) { const k = Math.floor(S.nest[e.id]); S.nest[e.id] -= k; add('egg', e.id, k); n += k; }
+    S.eggs = S.eggs.filter((e) => { if (e.fertile) return true; add('egg', SP[e.sp].egg, 1); n++; return false; });
     sfx.pop(); toast(`Nhặt ${n} quả trứng 🥚`);
   },
-  buy(v) { if (!spend(ANIMAL[v])) return; v === 'chicken' ? S.chickens++ : S.ducks++; sfx.cluck(); sfx.coin(); },
-  plant(v) { const [i, id] = v.split(':'), c = CROPS.find((x) => x.id === id); if (!spend(c.cost)) return; S.beds[+i] = { crop: id, progress: 0, last: Date.now(), waterUntil: 0 }; S.stats.planted++; sfx.pop(); close(); },
-  water(v) { const b = S.beds[+v], c = CROPS.find((x) => x.id === b.crop), now = Date.now(); b.waterUntil = Math.min(now + 0.9 * c.grow, Math.max(now, b.waterUntil) + 0.6 * c.grow); sfx.splash(); toast('Đã tưới 💧'); },
+  eggsall() { let n = 0; for (const e of S.eggs) { add('egg', SP[e.sp].egg, 1); n++; } S.eggs = []; sfx.pop(); toast(`Thu ${n} quả trứng 🥚`); },
+  buy(v) {
+    if (cnt(v) >= capOf(S, v) || !spend(ANIMAL[v])) return;
+    const rng = mulberry32((Date.now() ^ (S.nextId * 2654435761)) >>> 0), m = S.animals.filter((a) => a.sp === v && a.sex === 'm').length, f = cnt(v) - m;
+    addAnimal(S, v, m * 2 <= f ? 'm' : 'f', founder(rng), dayAt(S.world.step) - 3 - Math.floor(rng() * 4), true); sfx.cluck(); sfx.coin();
+  },
+  view(v) { open(animalCard(+v)); },
+  herd() { open(herdPanel); },
+  dex() { open(dexPanel); },
+  coopback() { open(coopPanel); },
+  openbuild() { open(buildPanel); },
+  sellanimal(v) { const a = S.animals.find((x) => x.id === +v); if (!a) return; S.coins += price(a); S.animals.splice(S.animals.indexOf(a), 1); sfx.coin(); toast(`Đã bán, được ${coin(price(a))}`); open(herdPanel); },
+  build(v) {
+    const [key, idx] = v.split(':'), b = BUILD[key];
+    if (!canBuild(b)) return;
+    if (key === 'lu' && (S.builds.lu || 0) >= 2) return;
+    S.coins -= b.coins; for (const [k, n] of Object.entries(b.cost)) S.res[k] -= n;
+    if (key === 'lu') S.builds.lu = (S.builds.lu || 0) + 1; else if (key === 'nen') S.builds.nen[+idx] = true; else S.builds[key] = true;
+    S.stats.built++; sfx.ok(); toast(`Đã xây ${b.icon} ${b.name}!`);
+  },
+  fert(v) { const b = S.beds[+v]; if (!b || b.fert || !S.res.phanu) return; S.res.phanu--; b.fert = true; sfx.pop(); toast('Đã bón phân ủ 🪱'); },
+  plant(v) { const [i, id] = v.split(':'), c = CROPS.find((x) => x.id === id); if (isFlooded(S, +i) || !spend(c.cost)) return; S.beds[+i] = { crop: id, progress: 0, last: Date.now(), waterUntil: 0, fert: false, flood: 0 }; S.stats.planted++; sfx.pop(); close(); },
+  water(v) {
+    const b = S.beds[+v], c = CROPS.find((x) => x.id === b.crop), now = Date.now(); let k = 0.6;
+    if (phaseAt(S.world.step) === 0) { if (S.lu >= 1) S.lu--; else { k = 0.3; toast('Mùa khô, ao cạn: tưới được ít. Xây lu nước mưa để trữ nước.'); } }
+    b.waterUntil = Math.min(now + 0.9 * c.grow, Math.max(now, b.waterUntil) + k * c.grow); sfx.splash(); if (k === 0.6) toast('Đã tưới 💧');
+  },
   pull(v) { S.beds[+v] = null; close(); },
   harvest(v) { const b = S.beds[+v]; add('crop', b.crop, 4); S.stats.harvested += 4; S.beds[+v] = null; sfx.pop(); toast(`Thu 4 ${CROPS.find((c) => c.id === b.crop).name}`); close(); },
-  sell(v) { const [b, id] = v.split(':'), x = sellable().find((y) => y.b === b && y.id === id), n = S.inv[b][id]; S.coins += unit(x) * n; S.inv[b][id] = 0; S.stats.sold += n; sfx.coin(); },
-  sellall() { for (const x of sellable()) { const n = S.inv[x.b][x.id]; S.coins += unit(x) * n; S.inv[x.b][x.id] = 0; S.stats.sold += n; } sfx.coin(); },
+  sell(v) { const [b, id] = v.split(':'), x = sellable().find((y) => y.b === b && y.id === id), n = bag(b)[id]; S.coins += unit(x) * n; bag(b)[id] = 0; S.stats.sold += n; sfx.coin(); },
+  sellall() { for (const x of sellable()) { const n = bag(x.b)[x.id]; S.coins += unit(x) * n; bag(x.b)[x.id] = 0; S.stats.sold += n; } sfx.coin(); },
   grain(v) { const n = +v; if (!spend(GRAIN.cost * n)) return; S.inv.grain += n; sfx.coin(); },
   up(key) {
     const map = { house: ['house', UP.house, 3], rod: ['rod', UP.rod, 3], trap: ['trapsN', UP.trap, 4], bed: ['bedsN', UP.bed, 6], coop: ['coop', UP.coop, 3] };
@@ -258,11 +343,23 @@ export const interact = (kind, idx) => {
   if (F.on) return;
   unlock(); sfx.tap();
   if (kind === 'pond') return world.near('pond') ? startFishing() : world.approach('pond', 0);
+  if (kind === 'animal') return open(animalCard(idx));
   if (kind === 'trap') return open(trapPanel(idx));
   if (kind === 'coop') return open(coopPanel);
   if (kind === 'bed') return open(bedPanel(idx));
   if (kind === 'stall') return open(market);
   if (kind === 'house') return open(house);
+};
+
+const drain = () => {
+  const q = S.ev.splice(0).slice(-3);
+  q.forEach((m, i) => setTimeout(() => toast(m, 2800), i * 3000));
+};
+let lastHud = 0;
+export const pulse = () => { tick(); drain(); if (Date.now() - lastHud > 4000) { lastHud = Date.now(); hud(); } };
+export const collect = (kind, id) => {
+  if ((S.res[kind] || 0) >= RES_CAP) return toast(`Túi ${RES[kind].name} đã đầy (${RES_CAP})`, 1200);
+  S.res[kind] = (S.res[kind] || 0) + 1; S.picked[id] = dayAt(S.world.step); S.stats.picked++; sfx.pop(); toast(`+1 ${RES[kind].icon} ${RES[kind].name}`, 900); after();
 };
 
 export const init = (w) => {
@@ -271,7 +368,7 @@ export const init = (w) => {
     const o = e.target.closest('[data-open]');
     if (o) { unlock(); sfx.tap(); if (F.on && o.dataset.open !== 'fish') return; if (o.dataset.open === 'fish') return F.on ? undefined : interact('pond', 0); if (o.dataset.open === 'trap') return startPlace(); return open({ market, house }[o.dataset.open]); }
     const a = e.target.closest('[data-a]');
-    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace'].includes(a.dataset.a)) after(); return; }
+    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace', 'view', 'herd', 'dex', 'coopback', 'openbuild'].includes(a.dataset.a)) after(); return; }
     if (e.target.id === 'back') close();
     const go = e.target.closest('[data-go]');
     if (go) { unlock(); sfx.tap(); const [k, i] = go.dataset.go.split(':'); return world.approach(k, +i); }

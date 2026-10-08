@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { S, tick, stageOf, bedReady, trapState, save, offlineSummary } from './state.js';
-import { CROPS } from './data.js';
+import { CROPS, PHASES, WEATHER, SP, SPOTS, RES, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
+import { phaseAt, levelAt, stepF, isFlooded, lifeStage, dayAt } from './sim.js';
+import { colorOf, avg } from './genes.js';
 import * as M from './models.js';
 import * as game from './game.js';
 import { sfx } from './sfx.js';
@@ -11,7 +13,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 120);
 const TARGET = new THREE.Vector3(2.4, 0, 3), CAMT = TARGET.clone();
-let az = Math.PI / 4, zoom = 1, baseDist = 20;
+let az = Math.PI / 4, zoom = 1, baseDist = 20, suongK = 0;
 const fit = () => {
   const w = innerWidth, h = innerHeight, a = w / h;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(w, h, false);
@@ -22,7 +24,7 @@ const placeCam = () => {
   const d = baseDist * zoom;
   camera.position.set(CAMT.x + Math.sin(az) * 1.414 * d * 0.66, CAMT.y + 1.15 * d * 0.66, CAMT.z + Math.cos(az) * 1.414 * d * 0.66);
   camera.lookAt(CAMT);
-  scene.fog.near = d * 1.1 + 8; scene.fog.far = d * 1.1 + 48;
+  scene.fog.near = d * 1.1 + 8 - suongK * 6; scene.fog.far = d * 1.1 + 48 - suongK * 22;
 };
 
 const sky = new THREE.Color(), SKY = [new THREE.Color(0x9fd8f0), new THREE.Color(0x101c40)];
@@ -35,7 +37,7 @@ addEventListener('resize', fit); fit(); placeCam();
 
 // ---------- Tĩnh: nền, cây, hàng rào (gộp 1 mesh) ----------
 const rnd = (() => { let a = 7; return () => ((a = (a * 16807) % 2147483647) - 1) / 2147483646; })();
-const POND = { x: 6.2, z: -1.2, rx: 4.3, rz: 3.2 };
+const POND = { x: 6.2, z: -1.2, rx: 4.3, rz: 3.2 }, POND0 = { rx: 4.3, rz: 3.2 };
 const inPond = (x, z, k = 1.25) => ((x - POND.x) / (POND.rx * k)) ** 2 + ((z - POND.z) / (POND.rz * k)) ** 2 < 1;
 const keepOut = (x, z) => inPond(x, z) || (x > -9 && x < 2 && z > -0.2 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.5) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 7.5 && z > 4 && z < 8) || (x > 0 && x < 5 && z > -2.2 && z < 0);
 {
@@ -71,6 +73,18 @@ const pond = new THREE.Group();
   scene.add(pond);
 }
 const dockM = M.dock(); dockM.position.set(1.7, 0, -1.2); scene.add(dockM);
+const cauM = M.monkeyBridge(); cauM.position.set(4.45, 0, -1.2); cauM.visible = false; scene.add(cauM);
+const oapM = M.nest(); oapM.position.set(-2.2, 0, 6.2); oapM.visible = false; scene.add(oapM);
+const luM = [[-2.6, -3.2], [-1.6, -3.2]].map(([x, z]) => { const m = M.lu(); m.position.set(x, 0, z); m.visible = false; scene.add(m); return m; });
+const phanM = M.manure(); phanM.position.set(-6.6, 0, 7.2); phanM.visible = false; scene.add(phanM);
+const heap = M.manure(); heap.position.set(-6.6, 0, 7.2); heap.scale.setScalar(0.7); heap.visible = false; scene.add(heap); // đống phân thô khi chưa có đống ủ
+const tint = new THREE.Mesh(new THREE.CircleGeometry(18, 28), new THREE.MeshBasicMaterial({ color: 0xd8b058, transparent: true, opacity: 0, depthWrite: false }));
+tint.rotation.x = -Math.PI / 2; tint.position.y = 0.012; scene.add(tint);
+const RAIN_N = 220, rainPos = new Float32Array(RAIN_N * 3);
+for (let i = 0; i < RAIN_N; i++) rainPos.set([(rnd() - 0.5) * 22, rnd() * 9, (rnd() - 0.5) * 22], i * 3);
+const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.PointsMaterial({ color: 0xcfe6f5, size: 0.09, transparent: true, opacity: 0, depthWrite: false });
+const rain = new THREE.Points(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
 const rodM = M.rod(); rodM.rotation.y = Math.PI / 2; rodM.position.set(0.22, 0.15, 0.2); rodM.visible = false;
 const ROD_TIP = new THREE.Vector3();
 
@@ -113,8 +127,10 @@ BED_POS.forEach(([x, z], i) => {
   const base = M.bedBase(); g.add(base);
   const lock = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 1.3), lockedMat); lock.position.y = 0.03; g.add(lock);
   const bub = M.bubble('🔒'); bub.position.y = 1.5; bub.scale.setScalar(0.8); g.add(bub);
+  const flood = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.1, 1.5), new THREE.MeshLambertMaterial({ color: 0x4aa8d8, transparent: true, opacity: 0.72, flatShading: true })); flood.position.y = 0.2; flood.visible = false; g.add(flood);
+  const plat = M.platform(); plat.visible = false; g.add(plat);
   addHit(M.hit('bed', i, 2.1, 1.6, 1.5, [x, 0.7, z]));
-  BEDS.push({ g, base, lock, bub, key: '', plant: null });
+  BEDS.push({ g, base, lock, bub, flood, plat, key: '', plant: null });
 });
 
 const TRAPS = [], trapHits = [];
@@ -144,20 +160,44 @@ const bobRing = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 20), new THREE.
 bobRing.rotation.x = -Math.PI / 2; bobRing.visible = false; scene.add(bobRing);
 let bobOn = false, bobBite = false;
 
-// ---------- Gà vịt ----------
-const yard = { x0: -4.0, x1: 1.2, z0: 5.2, z1: 7.6 };
-const animals = [], tmpl = { chicken0: M.chicken(true), chicken1: M.chicken(false), duck: M.duck() };
-const addAnimal = (type) => {
-  const g = new THREE.Group(), body = (type === 'duck' ? tmpl.duck : tmpl[`chicken${animals.length % 2}`]).clone();
-  g.add(body, M.blob(0.3)); g.userData = { type, body, tx: 0, tz: 0, wait: Math.random() * 2, bob: Math.random() * 6 };
-  g.position.set(yard.x0 + Math.random() * (yard.x1 - yard.x0), 0, yard.z0 + 1 + Math.random() * 3);
-  g.userData.tx = g.position.x; g.userData.tz = g.position.z; scene.add(g); animals.push(g);
+// ---------- Gà vịt (mỗi cá thể một nhóm, màu/cỡ theo gen) ----------
+const yard = { x0: -4.0, x1: 1.2, z0: 5.2, z1: 7.6 }, riverside = { x0: 0.8, x1: 3.6, z0: 1.4, z1: 3.4 };
+const animals = new Map(), animalHits = [];
+const mkAnimal = (a) => {
+  const g = new THREE.Group(), hex = SP[a.sp].hex[colorOf(a.genome)], male = a.sex === 'm';
+  const body = a.sp === 'duck' ? M.duck(hex, male) : M.chicken(hex, male);
+  const hit = M.hit('animal', a.id, 0.8, 0.8, 0.8, [0, 0.4, 0]);
+  g.add(body, M.blob(0.3), hit); animalHits.push(hit);
+  g.userData = { id: a.id, sp: a.sp, body, hit, tx: 0, tz: 0, wait: Math.random() * 2, bob: Math.random() * 6, sick: null };
+  g.position.set(yard.x0 + Math.random() * (yard.x1 - yard.x0), 0, yard.z0 + Math.random() * (yard.z1 - yard.z0));
+  g.userData.tx = g.position.x; g.userData.tz = g.position.z; scene.add(g); animals.set(a.id, g);
 };
 const syncAnimals = () => {
-  for (const [type, n] of [['chicken', S.chickens], ['duck', S.ducks]]) {
-    let have = animals.filter((a) => a.userData.type === type);
-    while (have.length < n) { addAnimal(type); have = animals.filter((a) => a.userData.type === type); }
-    while (have.length > n) { const a = have.pop(); scene.remove(a); animals.splice(animals.indexOf(a), 1); }
+  const day = dayAt(S.world.step), alive = new Set(S.animals.map((a) => a.id));
+  for (const [id, g] of animals) if (!alive.has(id)) { scene.remove(g); animalHits.splice(animalHits.indexOf(g.userData.hit), 1); animals.delete(id); }
+  for (const a of S.animals) {
+    if (!animals.has(a.id)) mkAnimal(a);
+    const g = animals.get(a.id), u = g.userData, st = lifeStage(a, day);
+    g.scale.setScalar(st === 'young' ? 0.55 : (0.82 + avg(a.genome, 'size') * 0.045) * (a.sex === 'm' ? 1.06 : 1));
+    if (!!a.sickUntil !== !!u.sick) {
+      if (a.sickUntil) { u.sick = M.bubble('🤒'); u.sick.position.y = 1.0; u.sick.scale.setScalar(0.6); g.add(u.sick); } else { g.remove(u.sick); u.sick = null; }
+    }
+    u.isSick = !!a.sickUntil;
+  }
+};
+
+// ---------- Điểm nhặt tài nguyên ----------
+const NODES = SPOTS.map(([kind, x, z, phases], id) => {
+  const sp = M.bubble(RES[kind].icon); sp.scale.setScalar(0.95); sp.visible = false; scene.add(sp);
+  return { id, kind, x, z, phases, edge: !!phases && kind !== 'la' && kind !== 'tre' && kind !== 'rom', sp, on: false };
+});
+const syncNodes = () => {
+  const day = dayAt(S.world.step), ph = phaseAt(S.world.step);
+  for (const n of NODES) {
+    if (n.edge) { n.px = POND.x + Math.cos(n.x) * POND.rx * 1.22; n.pz = POND.z + Math.sin(n.x) * POND.rz * 1.22; } else { n.px = n.x; n.pz = n.z; }
+    const season = !n.phases || n.phases.includes(ph), lucky = ((n.id * 131 + day * 17 + (S.world.seed & 0xff)) % 100) < 82;
+    n.on = season && lucky && S.picked[n.id] !== day && !(n.edge && blockedHard(n.px, n.pz));
+    n.sp.visible = n.on; n.sp.position.set(n.px, 0.55, n.pz);
   }
 };
 
@@ -165,11 +205,15 @@ const syncAnimals = () => {
 const world = {
   refresh() {
     if (houseLv !== S.house) { if (houseMesh) houseG.remove(houseMesh); houseMesh = M.house(S.house); houseG.add(houseMesh); houseLv = S.house; smoke.forEach((s) => (s.visible = S.house >= 2)); }
-    if (coopLv !== S.coop) { if (coopMesh) coopG.remove(coopMesh); coopMesh = M.coop(S.coop); coopG.add(coopMesh); coopLv = S.coop; }
-    syncAnimals();
+    const coopKey = `${S.coop}:${!!S.builds.chuong}`;
+    if (coopLv !== coopKey) { if (coopMesh) coopG.remove(coopMesh); coopMesh = M.coop(S.coop, S.builds.chuong); coopG.add(coopMesh); coopLv = coopKey; }
+    cauM.visible = !!S.builds.cau; oapM.visible = !!S.builds.oap; luM.forEach((m, i) => (m.visible = i < (S.builds.lu || 0)));
+    phanM.visible = !!S.builds.phan; heap.visible = !S.builds.phan && (S.res.phan || 0) >= 3;
+    syncAnimals(); syncNodes();
     BEDS.forEach((o, i) => {
       const open = i < S.bedsN, b = S.beds[i];
       o.base.visible = open; o.lock.visible = !open; o.bub.visible = !open;
+      o.flood.visible = open && isFlooded(S, i); o.plat.visible = !!S.builds.nen?.[i]; o.g.position.y = S.builds.nen?.[i] ? 0.22 : 0;
       const key = !open || !b ? '' : `${b.crop}:${stageOf(b)}`;
       if (key !== o.key) {
         if (o.plant) { o.g.remove(o.plant); o.plant = null; }
@@ -189,7 +233,7 @@ const world = {
       o.g.position.set(t.x, 0, t.z); o.hit.position.set(t.x, 0.8, t.z); o.hit.userData.idx = i;
       o.ring.visible = st === 'run'; o.bub.visible = st === 'ready';
     });
-    eggBub.visible = S.nest.trungga + S.nest.trungvit >= 1;
+    eggBub.visible = S.eggs.length >= 1;
   },
   bobber(on, bite = false) {
     if (on && !bobOn) { const dx = POND.x - P.x, dz = POND.z - P.z, L = Math.hypot(dx, dz) || 1, r = Math.min(3.4, L * 0.85); bobPos.set(P.x + (dx / L) * r, 0.12, P.z + (dz / L) * r); player.rotation.y = Math.atan2(dx, dz); }
@@ -199,13 +243,15 @@ const world = {
   shallow(x, z) { const n = ((x - POND.x) / POND.rx) ** 2 + ((z - POND.z) / POND.rz) ** 2; return n <= 0.98 && n >= 0.3; },
   dist(x, z) { return Math.hypot(P.x - x, P.z - z); },
   near, approach,
+  onBridge() { return !!S.builds.cau && P.x > 4.6 && onDock(P.x, P.z); },
 };
 
 // ---------- Nhân vật ----------
 const player = M.player(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
 const P = player.position;
-const onDock = (x, z) => x > 1.5 && x < 4.5 && z > -1.9 && z < -0.5;
+const onDock = (x, z) => x > 1.5 && x < (S.builds.cau ? 9.2 : 4.5) && z > -1.9 && z < -0.5;
 const SOLID = [[HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5]];
+const blockedHard = (x, z) => inPond(x, z, 0.97);
 const blocked = (x, z) => (inPond(x, z, 0.97) && !onDock(x, z)) || Math.hypot(x, z) > 14.5 || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
 const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4 };
 const MIND = { trap: 0, coop: 2.0, bed: 1.4, stall: 2.0, house: 2.8 };
@@ -244,6 +290,7 @@ const stepPlayer = (dt, now) => {
     const want = Math.atan2(mx, mz); let d = want - player.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); player.rotation.y += d * Math.min(1, dt * 12);
     const sw = Math.sin(now * 11) * 0.7; u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.body.position.y = Math.abs(Math.sin(now * 11)) * 0.05;
   } else { u.legL.rotation.x = u.legR.rotation.x = 0; u.body.position.y = Math.sin(now * 2) * 0.012; }
+  for (const n of NODES) if (n.on && Math.hypot(P.x - n.px, P.z - n.pz) < 0.95) { n.on = false; n.sp.visible = false; game.collect(n.kind, n.id); }
   CAMT.lerp(P, Math.min(1, dt * 4));
 };
 
@@ -299,7 +346,8 @@ canvas.addEventListener('pointerup', (e) => {
   aim(e);
   if (game.isPlacing()) { if (ray.ray.intersectPlane(gp, gv)) game.placeAt(gv.x, gv.z); return; }
   if (game.isBusy()) return;
-  const r = ray.intersectObjects([...hits, ...trapHits], false)[0];
+  const r = ray.intersectObjects([...animalHits, ...hits, ...trapHits], false)[0];
+  if (r && r.object.userData.kind === 'animal') return game.interact('animal', r.object.userData.idx);
   if (r) return approach(r.object.userData.kind, r.object.userData.idx);
   if (ray.ray.intersectPlane(gp, gv) && !blocked(gv.x, gv.z)) go = { x: gv.x, z: gv.z, kind: null, stuck: 0 };
 });
@@ -318,12 +366,13 @@ const BUT = Array.from({ length: 5 }, (_, i) => {
 });
 
 // ---------- Vòng lặp ----------
-const CYC = 8 * 60e3;
-S.t0 = S.t0 || Date.now();
-const dayness = () => {
-  const t = ((Date.now() - S.t0) / CYC + 0.18) % 1, s = Math.sin(t * 2 * Math.PI) + 0.4;
-  return THREE.MathUtils.smoothstep(s, -0.15, 0.35);
-};
+const CYC = DAY_STEPS * STEP_MS; // ngày game = 8 phút; f=0 là bình minh, f=0.6 hoàng hôn, còn lại là đêm
+const dayFrac = () => (((Date.now() - S.t0) / CYC) % 1 + 1) % 1;
+const dayness = (f) => (f < 0.6 ? THREE.MathUtils.smoothstep(Math.sin((Math.PI * f) / 0.6), 0.02, 0.4) : 0);
+const TINT = [[0xd8b058, 0.24], [0x7fcf5a, 0.08], [0x2f8f50, 0.12], [0x5fa6a0, 0.1]].map(([c, o]) => ({ c: new THREE.Color(c), o }));
+const tmpC = new THREE.Color(), GRAY = new THREE.Color(0x9aa7b0), FOG = new THREE.Color(0xe4ecf0);
+let rainK = 0, windK = 0;
+const BLUE = new THREE.Color(0x4aa8d8), SILT = new THREE.Color(0x9a9a60);
 const clock = new THREE.Clock();
 let first = true, nextSlow = 0, nextClock = 0;
 let fpsN = 0;
@@ -331,31 +380,44 @@ const loop = () => {
   fpsN++;
   const dt = Math.min(0.05, clock.getDelta()), now = clock.elapsedTime;
   if (document.hidden) return requestAnimationFrame(loop);
-  const d = dayness();
-  sky.copy(SKY[1]).lerp(SKY[0], d); scene.background = sky; scene.fog.color.copy(sky);
-  if (now > nextClock) { nextClock = now + 2; const el = document.querySelector('#clock'), t = d > 0.75 ? ['☀️', 'Ban ngày'] : d > 0.3 ? ['🌇', 'Hoàng hôn'] : ['🌙', 'Ban đêm']; el.innerHTML = `${t[0]} <span>${t[1]}</span>`; }
-  hemi.intensity = 0.38 + 0.62 * d; sun.intensity = 0.2 + 0.95 * d; hemi.color.setHex(d > 0.5 ? 0xffffff : 0x8a9be0);
+  const f = dayFrac(), d = dayness(f), wx = S.world.weather, nf = stepF(S), ph = phaseAt(nf), lvl = levelAt(nf);
+  const wantRain = wx === 'mua' && f > 0.36 && f < 0.7 ? 1 : 0, wantFog = wx === 'suong' && f < 0.3 ? 1 : 0, wantWind = wx === 'chuong' ? 1 : 0;
+  rainK += (wantRain - rainK) * Math.min(1, dt * 0.8); suongK += (wantFog - suongK) * Math.min(1, dt * 0.6); windK += (wantWind - windK) * Math.min(1, dt * 0.6);
+  sky.copy(SKY[1]).lerp(SKY[0], d).lerp(GRAY, rainK * 0.55 * Math.max(d, 0.3)).lerp(FOG, suongK * 0.7 * d); scene.background = sky; scene.fog.color.copy(sky);
+  if (now > nextClock) {
+    nextClock = now + 2; const W = WEATHER.find((x) => x.id === wx) || WEATHER[0], t = d > 0.75 ? '☀️ ban ngày' : f < 0.6 ? '🌅 sáng/chiều' : '🌙 ban đêm';
+    document.querySelector('#clock').innerHTML = `<b>${PHASES[ph].icon} ${PHASES[ph].name}</b><small>Năm ${Math.floor(nf / YEAR_STEPS) + 1} · ${W.icon} ${W.name} · ${t}</small>`;
+  }
+  // ao co giãn theo mực nước, màu đất theo mùa
+  const pk = 0.75 + 0.35 * lvl; POND.rx = POND0.rx * pk; POND.rz = POND0.rz * pk; pond.scale.set(pk, 1, pk); zone.scale.set(POND.rx, POND.rz, 1);
+  { const fr = (nf / 24) % 1, a = TINT[ph], b = TINT[(ph + 1) % 4], k = THREE.MathUtils.smoothstep(fr, 0.8, 1); tint.material.color.copy(a.c).lerp(b.c, k); tint.material.opacity = a.o + (b.o - a.o) * k; }
+  pond.userData.water.material.color.copy(BLUE).lerp(SILT, ph === 3 ? 0.35 : ph === 2 ? 0.15 : 0); // nước phù sa mùa lũ
+  rainMat.opacity = rainK * 0.75; rain.visible = rainK > 0.02;
+  if (rain.visible) { rain.position.set(CAMT.x, 0, CAMT.z); for (let i = 0; i < RAIN_N; i++) { rainPos[i * 3 + 1] -= dt * 14; if (rainPos[i * 3 + 1] < 0) rainPos[i * 3 + 1] = 8 + rnd() * 2; } rainGeo.attributes.position.needsUpdate = true; }
+  const dark = 1 - rainK * 0.35;
+  hemi.intensity = (0.38 + 0.62 * d) * dark; sun.intensity = (0.2 + 0.95 * d) * (1 - rainK * 0.6); sun.color.setHex(ph === 0 ? 0xffe2a8 : 0xfff2d6); hemi.color.setHex(d > 0.5 ? 0xffffff : 0x8a9be0);
   lamp.intensity = (1 - d) * 4; lamp.position.set(HOUSE.x + 1.5, 1.8, HOUSE.z + 2.2);
   ffMat.opacity = Math.max(0, 1 - d * 1.6);
   if (ffMat.opacity > 0.01) for (let i = 0; i < FF; i++) { const s = ffSeed[i]; ffPos[i * 3] = s[0] + Math.sin(now * 0.5 + s[3]) * 0.8; ffPos[i * 3 + 1] = s[1] + Math.sin(now * 0.9 + s[3] * 2) * 0.3; ffPos[i * 3 + 2] = s[2] + Math.cos(now * 0.4 + s[3]) * 0.8; ffGeo.attributes.position.needsUpdate = true; }
-  clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05); if (c.position.x > 24) c.position.x = -24; });
+  clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05) * (1 + windK * 5); if (c.position.x > 24) c.position.x = -24; });
   pond.userData.water.material.emissive.setScalar(0.04 + 0.02 * Math.sin(now * 1.5));
 
   SPK.forEach((m) => { const k = Math.max(0, Math.sin(now * 1.6 + m.userData.ph)); m.material.opacity = k ** 6 * 0.9 * d; m.scale.setScalar(0.5 + k); m.rotation.z = now; });
   BUT.forEach((g, i) => { const u = g.userData; g.visible = d > 0.55; if (!g.visible) return; const t = now * 0.5 + u.ph;
     g.position.set(u.cx + Math.cos(t) * u.r * 1.6, 0.9 + Math.sin(t * 2.3) * 0.25, u.cz + Math.sin(t * 1.3) * u.r * 1.6); g.rotation.y = -t * 1.3 + 1.2;
     const f = Math.sin(now * 22 + i) * 0.9; u.wl.rotation.z = f; u.wr.rotation.z = -f; });
-  // gà vịt
-  for (const a of animals) {
+  // gà vịt: vịt chạy đồng ra bờ ao mùa nước nổi ban ngày; con ốm đi chậm
+  for (const a of animals.values()) {
     const u = a.userData; u.bob += dt * 8;
-    const dx = u.tx - a.position.x, dz = u.tz - a.position.z, dist = Math.hypot(dx, dz);
+    const dx = u.tx - a.position.x, dz = u.tz - a.position.z, dist = Math.hypot(dx, dz), run = u.sp === 'duck' && ph === 3 && d > 0.4, zn = run ? riverside : yard;
     if (dist > 0.08) {
-      const sp = (u.type === 'duck' ? 0.5 : 0.7) * dt; a.position.x += (dx / dist) * sp; a.position.z += (dz / dist) * sp;
+      const sp = (u.sp === 'duck' ? 0.5 : 0.7) * dt * (u.isSick ? 0.3 : 1); a.position.x += (dx / dist) * sp; a.position.z += (dz / dist) * sp;
       a.rotation.y = Math.atan2(dx, dz); u.body.position.y = Math.abs(Math.sin(u.bob)) * 0.05; u.body.rotation.x = 0;
     } else {
-      u.wait -= dt; u.body.rotation.x = Math.sin(u.bob * 1.5) > 0.3 ? 0.5 : 0; // mổ thóc
-      if (u.wait <= 0) { u.tx = yard.x0 + Math.random() * (yard.x1 - yard.x0); u.tz = yard.z0 + Math.random() * (yard.z1 - yard.z0); u.wait = 1 + Math.random() * 3; if (Math.random() < 0.15) sfx.cluck(); }
+      u.wait -= dt; u.body.rotation.x = u.isSick ? 0.7 : Math.sin(u.bob * 1.5) > 0.3 ? 0.5 : 0; // mổ thóc / cúi đầu khi ốm
+      if (u.wait <= 0) { u.tx = zn.x0 + Math.random() * (zn.x1 - zn.x0); u.tz = zn.z0 + Math.random() * (zn.z1 - zn.z0); u.wait = 1 + Math.random() * 3; if (Math.random() < 0.15) sfx.cluck(); }
     }
+    if (u.sick) u.sick.position.y = 1.0 + Math.sin(now * 5) * 0.05;
   }
   // phao
   if (bobOn) {
@@ -372,7 +434,7 @@ const loop = () => {
 
   stepPlayer(dt, now); placeCam();
   if (now > nextAct) { nextAct = now + 0.2; pickAction(); }
-  if (now > nextSlow) { nextSlow = now + 1; world.refresh(); }
+  if (now > nextSlow) { nextSlow = now + 1; game.pulse(); world.refresh(); }
   renderer.render(scene, camera);
   if (first) { first = false; const l = document.querySelector('#load'); l.style.opacity = 0; setTimeout(() => l.remove(), 500); }
   requestAnimationFrame(loop);

@@ -62,6 +62,13 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:ui
 .btn.big{width:100%;font-size:18px;padding:14px}
 .bar{height:14px;border-radius:8px;background:#eadcb4;overflow:hidden;margin:8px 0;box-shadow:inset 0 2px 0 rgba(0,0,0,.08)}
 .bar i{display:block;height:100%;background:linear-gradient(#7fd06a,#4e9d45);border-radius:8px;transition:width .6s}
+#clock{flex-direction:column;align-items:flex-end;gap:0;padding:5px 12px;line-height:1.15}
+#clock b{font-size:14px}
+#clock small{font-size:11px;font-weight:700;opacity:.7}
+.gene{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800}
+.gene span{width:66px}
+.gene .bar{flex:1;margin:5px 0}
+.gene b{width:30px;text-align:right}
 #toast{position:fixed;left:50%;top:calc(var(--safe-t) + 150px);transform:translateX(-50%);z-index:9;background:rgba(58,42,26,.94);color:#fff;padding:10px 16px;border-radius:16px;font-weight:800;font-size:14px;max-width:88vw;text-align:center;pointer-events:none;animation:pop .25s;box-shadow:0 6px 16px rgba(0,0,0,.3)}
 @keyframes pop{from{transform:translate(-50%,-10px) scale(.9);opacity:0}}
 #chips button{animation-name:chip}
@@ -91,7 +98,7 @@ body.busy #joy,body.busy #act,body.busy #chips{display:none}
 <body>
 <canvas id="c"></canvas>
 <div id="vig"></div>
-<div id="hud"><div id="row1"><div id="coins" class="glass"><b>🪙</b><span id="cv">0</span></div><div id="clock" class="glass">☀️ <span>Ban ngày</span></div></div><div id="quest" class="glass"></div><div id="chips"></div></div>
+<div id="hud"><div id="row1"><div id="coins" class="glass"><b>🪙</b><span id="cv">0</span></div><div id="clock" class="glass"><b>🌦️ Đầu mưa</b><small>Năm 1</small></div></div><div id="quest" class="glass"></div><div id="chips"></div></div>
 <div id="fish" hidden></div>
 <div id="hint" class="glass" hidden>🪤 Chạm vào chỗ nước nông ven bờ để thả lờ <button class="btn gray" data-a="unplace" style="min-height:34px;padding:6px 12px">Huỷ</button></div>
 <div id="joy"><i></i></div>
