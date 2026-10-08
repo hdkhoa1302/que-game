@@ -23,6 +23,8 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:ui
 #coins b{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe58a,#f3b53f 60%,#d99a1e);box-shadow:inset 0 -2px 0 #b88418;font-size:15px}
 #coins.bump{animation:bump .3s}
 @keyframes bump{40%{transform:scale(1.12)}}
+#online{margin-left:auto;padding:6px 10px;border-radius:999px;font-weight:800;font-size:14px;pointer-events:auto}
+#online+#clock{margin-left:8px}
 #clock{margin-left:auto;padding:6px 12px;border-radius:999px;font-weight:800;font-size:15px;display:flex;gap:6px;align-items:center}
 #quest{padding:8px 12px;font-size:13.5px;font-weight:700;line-height:1.25;border-radius:var(--r);max-width:430px;display:flex;gap:8px;align-items:center}
 #quest .q{flex:1;min-width:0}
@@ -98,7 +100,7 @@ body.busy #joy,body.busy #act,body.busy #chips{display:none}
 <body>
 <canvas id="c"></canvas>
 <div id="vig"></div>
-<div id="hud"><div id="row1"><div id="coins" class="glass"><b>🪙</b><span id="cv">0</span></div><div id="clock" class="glass"><b>🌦️ Đầu mưa</b><small>Năm 1</small></div></div><div id="quest" class="glass"></div><div id="chips"></div></div>
+<div id="hud"><div id="row1"><div id="coins" class="glass"><b>🪙</b><span id="cv">0</span></div><div id="online" class="glass" hidden></div><div id="clock" class="glass"><b>🌦️ Đầu mưa</b><small>Năm 1</small></div></div><div id="quest" class="glass"></div><div id="chips"></div></div>
 <div id="fish" hidden></div>
 <div id="hint" class="glass" hidden>🪤 Chạm vào chỗ nước nông ven bờ để thả lờ <button class="btn gray" data-a="unplace" style="min-height:34px;padding:6px 12px">Huỷ</button></div>
 <div id="joy"><i></i></div>

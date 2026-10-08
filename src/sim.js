@@ -132,4 +132,20 @@ export const advance = (S, now = Date.now()) => {
   while (w.step < target) stepOnce(S, w.step + 1);
 };
 
+// Gia nhập thế giới chung: dùng hạt giống + đồng hồ của máy chủ (mùa, thời tiết, mực nước giống nhau).
+// Nếu là thế giới khác lần trước, dời tuổi gà vịt/trứng để chúng không già hay trẻ đi đột ngột.
+export const joinWorld = (S, W, serverNow, localNow = Date.now()) => {
+  const w = S.world, t0 = W.t0 - (serverNow - localNow); // t0 quy về đồng hồ máy này
+  if (S.netId === W.id) { S.t0 = t0; return { changed: false }; }
+  const oldDay = dayAt(w.step);
+  S.t0 = t0; w.seed = W.seed; w.base = W.base;
+  w.step = Math.max(W.base, Math.floor(stepF(S, localNow)));
+  const shift = dayAt(w.step) - oldDay;
+  S.animals.forEach((a) => { a.born += shift; if (a.sickUntil) a.sickUntil = w.step + DAY_STEPS; });
+  S.eggs.forEach((e) => { e.laid += shift; });
+  S.beds.forEach((b) => { if (b) b.last = localNow; });
+  S.netId = W.id;
+  return { changed: true };
+};
+
 export { founder };

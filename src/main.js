@@ -6,6 +6,7 @@ import { colorOf, avg } from './genes.js';
 import * as M from './models.js';
 import * as game from './game.js';
 import { sfx } from './sfx.js';
+import { net, connect, emote } from './net.js';
 
 // ---------- Renderer / camera ----------
 const canvas = document.querySelector('#c');
@@ -246,6 +247,23 @@ const world = {
   onBridge() { return !!S.builds.cau && P.x > 4.6 && onDock(P.x, P.z); },
 };
 
+// ---------- Người chơi khác (thế giới chung) ----------
+const remotes = new Map();
+net.onJoin = (p) => {
+  if (remotes.has(p.id)) return;
+  const g = M.player(); g.position.set(p.x, 0, p.z); g.rotation.y = p.ry;
+  const tag = M.nameTag(p.name); tag.position.y = 1.85; g.add(tag); scene.add(g);
+  remotes.set(p.id, { g, data: p, emo: null, emoT: 0 });
+};
+net.onLeave = (id) => { const r = remotes.get(id); if (r) { scene.remove(r.g); remotes.delete(id); } };
+net.onEmote = (id, e) => {
+  const r = remotes.get(id); if (!r) return;
+  if (r.emo) r.g.remove(r.emo);
+  r.emo = M.bubble(e); r.emo.position.y = 2.4; r.g.add(r.emo); r.emoT = clock.elapsedTime + 3;
+};
+net.onWorld = () => { tick(); save(); location.reload(); };
+net.onStatus = (on, n) => { const el = document.querySelector('#online'); if (el) { el.hidden = !on; el.textContent = `👥 ${n}`; } };
+
 // ---------- Nhân vật ----------
 const player = M.player(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
 const P = player.position;
@@ -419,6 +437,15 @@ const loop = () => {
     }
     if (u.sick) u.sick.position.y = 1.0 + Math.sin(now * 5) * 0.05;
   }
+  // người chơi khác: nội suy mượt tới vị trí máy chủ gửi
+  for (const r of remotes.values()) {
+    const p = r.data, k = Math.min(1, dt * 8), u = r.g.userData;
+    r.g.position.x += (p.x - r.g.position.x) * k; r.g.position.z += (p.z - r.g.position.z) * k;
+    let d = p.ry - r.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); r.g.rotation.y += d * k;
+    const mv = p.mv || Math.hypot(p.x - r.g.position.x, p.z - r.g.position.z) > 0.1, sw = mv ? Math.sin(now * 11) * 0.7 : 0;
+    u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.body.position.y = mv ? Math.abs(Math.sin(now * 11)) * 0.05 : 0;
+    if (r.emo) { r.emo.position.y = 2.4 + Math.sin(now * 4) * 0.08; if (now > r.emoT) { r.g.remove(r.emo); r.emo = null; } }
+  }
   // phao
   if (bobOn) {
     bobber.position.set(bobPos.x, 0.12 + Math.sin(now * 3) * 0.03 - (bobBite ? 0.1 + Math.abs(Math.sin(now * 18)) * 0.08 : 0), bobPos.z);
@@ -448,6 +475,8 @@ game.after(); save();
 requestAnimationFrame(loop);
 addEventListener('pagehide', () => { tick(); save(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); world.refresh(); } });
+{ const EM = ['👋', '😄', '🎣', '🐔']; let ei = 0; document.querySelector('#online')?.addEventListener('click', () => { const e = EM[ei++ % EM.length]; emote(e); net.onEmote(net.id, e); sfx.cluck?.(); }); }
+connect(S, () => ({ x: +P.x.toFixed(2), z: +P.z.toFixed(2), ry: +player.rotation.y.toFixed(2), mv: go || joy.x || joy.y ? 1 : 0 }));
 window.__game = { S, world, game, P, proj: (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, az: () => az, go: () => go, fps: () => fpsN };
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});

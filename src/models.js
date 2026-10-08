@@ -44,6 +44,18 @@ export const bubble = (txt) => {
   return s;
 };
 
+export const nameTag = (txt) => {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const x = c.getContext('2d');
+  x.font = 'bold 30px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  const w = Math.min(244, x.measureText(txt).width + 24);
+  x.fillStyle = 'rgba(20,30,40,.62)'; x.beginPath(); x.roundRect(128 - w / 2, 8, w, 48, 24); x.fill();
+  x.fillStyle = '#fff'; x.fillText(txt, 128, 33, 220);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
+  s.scale.set(2, 0.5, 1); s.renderOrder = 10;
+  return s;
+};
+
 // Vật vô hình, to hơn hình thật, để chạm trúng dễ trên điện thoại.
 export const hit = (kind, idx, w, h, d, p) => {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
