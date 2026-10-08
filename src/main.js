@@ -22,7 +22,7 @@ const placeCam = () => {
   const d = baseDist * zoom;
   camera.position.set(CAMT.x + Math.sin(az) * 1.414 * d * 0.66, CAMT.y + 1.15 * d * 0.66, CAMT.z + Math.cos(az) * 1.414 * d * 0.66);
   camera.lookAt(CAMT);
-  scene.fog.near = d * 0.8 + 6; scene.fog.far = d * 0.8 + 34;
+  scene.fog.near = d * 1.1 + 8; scene.fog.far = d * 1.1 + 48;
 };
 
 const sky = new THREE.Color(), SKY = [new THREE.Color(0x9fd8f0), new THREE.Color(0x101c40)];
@@ -247,6 +247,19 @@ const stepPlayer = (dt, now) => {
   CAMT.lerp(P, Math.min(1, dt * 4));
 };
 
+// nút hành động: vật gần nhất trong tầm với
+let nextAct = 0;
+const pickAction = () => {
+  const c = [];
+  const add = (kind, idx, x, z, icon, label) => { if (near(kind, idx)) c.push({ kind, idx, icon, label, d: Math.hypot(P.x - x, P.z - z) }); };
+  S.traps.forEach((t, i) => add('trap', i, t.x, t.z, '🪤', { idle: 'Thả lờ', run: 'Xem lờ', ready: 'Thu cá' }[trapState(t)]));
+  BED_POS.forEach(([x, z], i) => { if (i >= S.bedsN) return; const b = S.beds[i]; add('bed', i, x, z, b ? (bedReady(b) ? '🧺' : '💧') : '🌱', b ? (bedReady(b) ? 'Thu hoạch' : 'Tưới') : 'Gieo hạt'); });
+  add('coop', 0, COOP.x, COOP.z, '🐔', 'Chuồng'); add('stall', 0, 4.2, 6.2, '🧺', 'Chợ'); add('house', 0, HOUSE.x, HOUSE.z, '🏠', 'Nhà');
+  if (near('pond')) c.push({ kind: 'pond', idx: 0, icon: '🎣', label: 'Câu cá', d: Math.hypot(P.x - POND.x, P.z - POND.z) - 3.5 });
+  c.sort((a, b) => a.d - b.d);
+  game.setAction(!game.isBusy() && !go?.kind ? c[0] || null : null);
+};
+
 // joystick
 {
   const el = document.querySelector('#joy'), knob = el.firstElementChild; let id = null;
@@ -291,6 +304,19 @@ canvas.addEventListener('pointerup', (e) => {
   if (ray.ray.intersectPlane(gp, gv) && !blocked(gv.x, gv.z)) go = { x: gv.x, z: gv.z, kind: null, stuck: 0 };
 });
 
+// ---------- Lấp lánh mặt nước + bướm ----------
+const SPK = Array.from({ length: 12 }, (_, i) => {
+  const m = new THREE.Mesh(new THREE.CircleGeometry(0.2, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
+  m.rotation.x = -Math.PI / 2; const a = rnd() * 6.283, r = Math.sqrt(0.35 + rnd() * 0.6);
+  m.position.set(POND.x + Math.cos(a) * POND.rx * r, 0.11, POND.z + Math.sin(a) * POND.rz * r); m.userData.ph = rnd() * 6.283; scene.add(m); return m;
+});
+const BUT = Array.from({ length: 5 }, (_, i) => {
+  const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: [0xffd23f, 0xf26b8a, 0xffffff, 0xb487f0, 0xff9f43][i], side: THREE.DoubleSide });
+  const w = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.16, 0.0, 0.12), new THREE.Vector3(0.16, 0.0, -0.12)]);
+  const wl = new THREE.Mesh(w, mat), wr = new THREE.Mesh(w, mat); wr.scale.x = -1; g.add(wl, wr); g.userData = { wl, wr, cx: -4 + rnd() * 9, cz: 1 + rnd() * 7, ph: rnd() * 6.283, r: 1 + rnd() };
+  scene.add(g); return g;
+});
+
 // ---------- Vòng lặp ----------
 const CYC = 8 * 60e3;
 S.t0 = S.t0 || Date.now();
@@ -299,7 +325,7 @@ const dayness = () => {
   return THREE.MathUtils.smoothstep(s, -0.15, 0.35);
 };
 const clock = new THREE.Clock();
-let first = true, nextSlow = 0;
+let first = true, nextSlow = 0, nextClock = 0;
 let fpsN = 0;
 const loop = () => {
   fpsN++;
@@ -307,6 +333,7 @@ const loop = () => {
   if (document.hidden) return requestAnimationFrame(loop);
   const d = dayness();
   sky.copy(SKY[1]).lerp(SKY[0], d); scene.background = sky; scene.fog.color.copy(sky);
+  if (now > nextClock) { nextClock = now + 2; const el = document.querySelector('#clock'), t = d > 0.75 ? ['☀️', 'Ban ngày'] : d > 0.3 ? ['🌇', 'Hoàng hôn'] : ['🌙', 'Ban đêm']; el.innerHTML = `${t[0]} <span>${t[1]}</span>`; }
   hemi.intensity = 0.38 + 0.62 * d; sun.intensity = 0.2 + 0.95 * d; hemi.color.setHex(d > 0.5 ? 0xffffff : 0x8a9be0);
   lamp.intensity = (1 - d) * 4; lamp.position.set(HOUSE.x + 1.5, 1.8, HOUSE.z + 2.2);
   ffMat.opacity = Math.max(0, 1 - d * 1.6);
@@ -314,6 +341,10 @@ const loop = () => {
   clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05); if (c.position.x > 24) c.position.x = -24; });
   pond.userData.water.material.emissive.setScalar(0.04 + 0.02 * Math.sin(now * 1.5));
 
+  SPK.forEach((m) => { const k = Math.max(0, Math.sin(now * 1.6 + m.userData.ph)); m.material.opacity = k ** 6 * 0.9 * d; m.scale.setScalar(0.5 + k); m.rotation.z = now; });
+  BUT.forEach((g, i) => { const u = g.userData; g.visible = d > 0.55; if (!g.visible) return; const t = now * 0.5 + u.ph;
+    g.position.set(u.cx + Math.cos(t) * u.r * 1.6, 0.9 + Math.sin(t * 2.3) * 0.25, u.cz + Math.sin(t * 1.3) * u.r * 1.6); g.rotation.y = -t * 1.3 + 1.2;
+    const f = Math.sin(now * 22 + i) * 0.9; u.wl.rotation.z = f; u.wr.rotation.z = -f; });
   // gà vịt
   for (const a of animals) {
     const u = a.userData; u.bob += dt * 8;
@@ -340,6 +371,7 @@ const loop = () => {
   smoke.forEach((s, i) => { const k = (now * 0.3 + i / smoke.length) % 1; s.position.set(0.9 + k * 0.5, 3.3 + k * 1.8, -0.4); s.scale.setScalar(0.5 + k * 1.2); s.material.opacity = 0.5 * (1 - k); });
 
   stepPlayer(dt, now); placeCam();
+  if (now > nextAct) { nextAct = now + 0.2; pickAction(); }
   if (now > nextSlow) { nextSlow = now + 1; world.refresh(); }
   renderer.render(scene, camera);
   if (first) { first = false; const l = document.querySelector('#load'); l.style.opacity = 0; setTimeout(() => l.remove(), 500); }

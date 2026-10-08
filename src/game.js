@@ -22,10 +22,35 @@ const draw = () => { if (cur) $('#sheetBody').innerHTML = cur(); };
 const open = (fn) => { cur = fn; draw(); $('#sheet').hidden = false; $('#back').hidden = false; $('#sheet').scrollTop = 0; sync(); };
 const close = () => { cur = null; $('#sheet').hidden = true; $('#back').hidden = true; sync(); };
 
+let shown = -1;
+const countTo = (to) => {
+  const el = $('#cv'), from = shown < 0 ? to : shown, t0 = performance.now(); shown = to;
+  if (from === to) { el.textContent = to; return; }
+  $('#coins').classList.remove('bump'); void $('#coins').offsetWidth; $('#coins').classList.add('bump');
+  const f = (n) => { const k = Math.min(1, (n - t0) / 450); el.textContent = Math.round(from + (to - from) * k); if (k < 1) requestAnimationFrame(f); };
+  requestAnimationFrame(f);
+};
 const hud = () => {
-  $('#coins').textContent = `🪙 ${S.coins}`;
+  countTo(S.coins);
   const q = QUESTS[S.quest];
-  $('#quest').innerHTML = q ? `🎯 ${q.text}<small>Thưởng ${coin(q.reward)}</small>` : '🌾 Hết nhiệm vụ — cứ thong thả làm ăn nhé';
+  $('#quest').innerHTML = q ? `<span>🎯</span><div class="q">${q.text}<small>Nhiệm vụ ${S.quest + 1}/${QUESTS.length}</small></div><div class="rw">+${q.reward}🪙</div>` : '<span>🌾</span><div class="q">Hết nhiệm vụ<small>Cứ thong thả làm ăn nhé</small></div>';
+  // chip báo việc cần làm: chạm là nhân vật tự đi tới
+  const chips = [], rb = S.beds.map((b, i) => (i < S.bedsN && bedReady(b) ? i : -1)).filter((i) => i >= 0);
+  if (rb.length) chips.push(`<button data-go="bed:${rb[0]}">${CROPS.find((c) => c.id === S.beds[rb[0]].crop).icon} ${rb.length} chín</button>`);
+  const eg = Math.floor(S.nest.trungga + S.nest.trungvit); if (eg >= 1) chips.push(`<button data-go="coop:0">🥚 ${eg}</button>`);
+  const tr = S.traps.map((t, i) => (trapState(t) === 'ready' ? i : -1)).filter((i) => i >= 0);
+  if (tr.length) chips.push(`<button data-go="trap:${tr[0]}">🪤 ${tr.length} đầy</button>`);
+  if (S.fedUntil < Date.now() && !chips.length && S.stats.fed) chips.push('<button data-go="coop:0">🌾 Gà vịt đói</button>');
+  $('#chips').innerHTML = chips.join('');
+  $('#bar [data-open=trap] i').textContent = tr.length || '';
+};
+
+// Nút hành động theo ngữ cảnh: main.js báo vật gần nhất trong tầm với.
+let actKey = '';
+export const setAction = (a) => {
+  const key = a ? `${a.kind}:${a.idx}:${a.label}` : '';
+  if (key === actKey) return; actKey = key;
+  const b = $('#act'); b.hidden = !a; if (a) { b.innerHTML = `${a.icon}<span>${a.label}</span>`; b.dataset.kind = a.kind; b.dataset.idx = a.idx; }
 };
 
 export const after = () => {
@@ -248,6 +273,10 @@ export const init = (w) => {
     const a = e.target.closest('[data-a]');
     if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace'].includes(a.dataset.a)) after(); return; }
     if (e.target.id === 'back') close();
+    const go = e.target.closest('[data-go]');
+    if (go) { unlock(); sfx.tap(); const [k, i] = go.dataset.go.split(':'); return world.approach(k, +i); }
+    const ab = e.target.closest('#act');
+    if (ab) { unlock(); return interact(ab.dataset.kind, +ab.dataset.idx); }
     if (e.target.closest('#snd')) { unlock(); ACT.music(); save(); }
   });
   $('#sheet').addEventListener('pointerdown', () => (pressed = true));
