@@ -43,6 +43,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:sy
 .btn.big{width:100%;font-size:18px;padding:14px}
 .bar{height:12px;border-radius:8px;background:#eadcb4;overflow:hidden;margin:8px 0}
 .bar i{display:block;height:100%;background:var(--green);border-radius:8px}
+#hint{position:fixed;left:12px;right:12px;top:calc(max(10px,env(safe-area-inset-top)) + 118px);z-index:3;padding:8px 12px;font-size:13px;font-weight:700;display:flex;gap:8px;align-items:center;justify-content:space-between;border-radius:18px}
+#joy{position:fixed;left:16px;bottom:calc(104px + env(safe-area-inset-bottom));width:116px;height:116px;border-radius:50%;background:rgba(255,248,230,.45);border:3px solid rgba(255,248,230,.9);z-index:2;touch-action:none}
+#joy i{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px;border-radius:50%;background:rgba(255,248,230,.95);border:2px solid var(--line);box-shadow:0 2px 0 #c9b479}
+body.busy #joy{display:none}
+#bar button{width:58px}
 #toast{position:fixed;left:50%;top:max(80px,calc(env(safe-area-inset-top) + 80px));transform:translateX(-50%);z-index:9;background:#3b2a1a;color:#fff;padding:10px 16px;border-radius:14px;font-weight:700;font-size:14px;max-width:88vw;text-align:center;pointer-events:none;animation:pop .25s}
 @keyframes pop{from{transform:translate(-50%,-10px) scale(.9);opacity:0}}
 #fish{position:fixed;inset:0;z-index:4;pointer-events:none}
@@ -65,8 +70,11 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:sy
 <canvas id="c"></canvas>
 <div id="hud"><div id="coins" class="pill">🪙 0</div><div id="quest" class="pill"></div></div>
 <div id="fish" hidden></div>
+<div id="hint" class="pill" hidden>🪤 Chạm vào chỗ nước nông ven bờ để thả lờ <button class="btn gray" data-a="unplace" style="min-height:34px;padding:6px 12px">Huỷ</button></div>
+<div id="joy"><i></i></div>
 <div id="bar">
   <button data-open="fish">🎣<span>Câu</span></button>
+  <button data-open="trap">🪤<span>Lờ</span></button>
   <button data-open="market">🧺<span>Chợ</span></button>
   <button data-open="house">🏠<span>Nhà</span></button>
   <button id="snd">🔊<span>Âm</span></button>

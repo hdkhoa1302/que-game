@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { S, tick, stageOf, bedReady, trapLeft, save, offlineSummary } from './state.js';
+import { S, tick, stageOf, bedReady, trapState, save, offlineSummary } from './state.js';
 import { CROPS } from './data.js';
 import * as M from './models.js';
 import * as game from './game.js';
@@ -10,16 +10,20 @@ const canvas = document.querySelector('#c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(38, 1, 0.5, 120);
-const TARGET = new THREE.Vector3(0.8, 0, 1.2), DIR = new THREE.Vector3(1, 1.15, 1).normalize();
+const TARGET = new THREE.Vector3(2.4, 0, 3), CAMT = TARGET.clone();
+let az = Math.PI / 4, zoom = 1, baseDist = 20;
 const fit = () => {
   const w = innerWidth, h = innerHeight, a = w / h;
   renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5)); renderer.setSize(w, h, false);
   camera.aspect = a; const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const dist = Math.max(18.5 / (2 * t * a), 16 / (2 * t));
-  scene.fog.near = dist + 6; scene.fog.far = dist + 34;
-  camera.position.copy(TARGET).addScaledVector(DIR, dist); camera.lookAt(TARGET); camera.updateProjectionMatrix();
+  baseDist = Math.max(15 / (2 * t * a), 13 / (2 * t)); camera.updateProjectionMatrix();
 };
-
+const placeCam = () => {
+  const d = baseDist * zoom;
+  camera.position.set(CAMT.x + Math.sin(az) * 1.414 * d * 0.66, CAMT.y + 1.15 * d * 0.66, CAMT.z + Math.cos(az) * 1.414 * d * 0.66);
+  camera.lookAt(CAMT);
+  scene.fog.near = d * 0.8 + 6; scene.fog.far = d * 0.8 + 34;
+};
 
 const sky = new THREE.Color(), SKY = [new THREE.Color(0x9fd8f0), new THREE.Color(0x101c40)];
 const hemi = new THREE.HemisphereLight(0xffffff, 0x8fb070, 1);
@@ -27,7 +31,7 @@ const sun = new THREE.DirectionalLight(0xfff2d6, 1.1); sun.position.set(-8, 14, 
 const lamp = new THREE.PointLight(0xffa850, 0, 9, 1.5);
 scene.add(hemi, sun, lamp);
 scene.fog = new THREE.Fog(0x9fd8f0, 30, 62);
-addEventListener('resize', fit); fit();
+addEventListener('resize', fit); fit(); placeCam();
 
 // ---------- Tĩnh: nền, cây, hàng rào (gộp 1 mesh) ----------
 const rnd = (() => { let a = 7; return () => ((a = (a * 16807) % 2147483647) - 1) / 2147483646; })();
@@ -48,6 +52,11 @@ const keepOut = (x, z) => inPond(x, z) || (x > -9 && x < 2 && z > -0.2 && z < 5.
   // hàng rào sân gà vịt
   M.fence(b, -4.6, 8.4, 6, Math.PI / 2); M.fence(b, -1.6, 10.6, 6, 0); M.fence(b, 1.8, 7.6, 4.5, Math.PI / 2);
   M.fence(b, -4.4, 4.2, 5, 0); M.fence(b, 2.4, 4.4, 4, 0);
+  for (let i = 0; i < 18; i++) { // lau sậy ven ao
+    const an = (i / 18) * 6.283, x = POND.x + Math.cos(an) * POND.rx * 1.1, z = POND.z + Math.sin(an) * POND.rz * 1.1;
+    if (x < 3.4 && Math.abs(z + 1.2) < 1.3) continue;
+    for (let k = 0; k < 3; k++) { const ox = x + (k - 1) * 0.12, h = 0.9 + ((i * 7 + k * 3) % 5) * 0.1; b.cyl(0x6a8a3a, [ox, h / 2, z + k * 0.05], 0.02, 0.03, h, 3); b.cyl(0x6b4a2a, [ox, h, z + k * 0.05], 0.05, 0.05, 0.28, 4); }
+  }
   scene.add(b.mesh());
 }
 
@@ -62,8 +71,8 @@ const pond = new THREE.Group();
   scene.add(pond);
 }
 const dockM = M.dock(); dockM.position.set(1.7, 0, -1.2); scene.add(dockM);
-const rodM = M.rod(); rodM.position.set(4.35, 0.3, -0.7); rodM.rotation.y = 0.1; scene.add(rodM);
-const ROD_TIP = new THREE.Vector3(4.35 + 0.7, 1.9, -0.75);
+const rodM = M.rod(); rodM.rotation.y = Math.PI / 2; rodM.position.set(0.22, 0.15, 0.2); rodM.visible = false;
+const ROD_TIP = new THREE.Vector3();
 
 // clouds
 const clouds = [0, 1, 2, 3].map((i) => { const c = M.cloud(); c.position.set(-18 + i * 11, 6 + (i % 2) * 1.5, -9 + i * 3); c.scale.setScalar(0.8 + (i % 3) * 0.2); scene.add(c); return c; });
@@ -108,18 +117,20 @@ BED_POS.forEach(([x, z], i) => {
   BEDS.push({ g, base, lock, bub, key: '', plant: null });
 });
 
-const TRAPS = [];
-const TRAP_POS = [[4.1, 0.9], [8.6, 1.5], [9.9, -1.9], [6.7, -3.9]];
-TRAP_POS.forEach(([x, z], i) => {
-  const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
+const TRAPS = [], trapHits = [];
+const mkTrap = () => {
+  const g = new THREE.Group(); scene.add(g);
   const stake = M.stake(); g.add(stake);
-  const trap = M.trap(); trap.position.y = 0.0; trap.rotation.y = i * 0.8; g.add(trap);
+  const trap = M.trap(); trap.position.y = 0.0; trap.rotation.y = TRAPS.length * 0.8; g.add(trap);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.4, 0.5, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.12; g.add(ring);
   const bub = M.bubble('🐟'); bub.position.y = 1.5; g.add(bub);
-  addHit(M.hit('trap', i, 1.9, 1.6, 1.9, [x, 0.8, z]));
-  TRAPS.push({ g, stake, trap, ring, bub });
-});
+  const hit = M.hit('trap', TRAPS.length, 1.9, 1.6, 1.9, [0, 0.8, 0]); scene.add(hit); trapHits.push(hit);
+  return { g, stake, trap, ring, bub, hit };
+};
+const rmTrap = (o) => { scene.remove(o.g, o.hit); trapHits.splice(trapHits.indexOf(o.hit), 1); };
+const zone = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.99, 40), new THREE.MeshBasicMaterial({ color: 0x9be8a0, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }));
+zone.rotation.x = -Math.PI / 2; zone.scale.set(POND.rx, POND.rz, 1); zone.position.set(POND.x, 0.13, POND.z); zone.visible = false; scene.add(zone);
 
 // bóng "!" ổ trứng
 const eggBub = M.bubble('🥚'); eggBub.position.set(COOP.x, 2.8, COOP.z); scene.add(eggBub);
@@ -127,7 +138,7 @@ const eggBub = M.bubble('🥚'); eggBub.position.set(COOP.x, 2.8, COOP.z); scene
 // phao + dây câu
 const bobber = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshLambertMaterial({ color: 0xe5483a, emissive: 0x330a06 }));
 const bobPos = new THREE.Vector3(6.4, 0.12, -0.2); bobber.position.copy(bobPos); bobber.visible = false; scene.add(bobber);
-const lineGeo = new THREE.BufferGeometry().setFromPoints([ROD_TIP, bobPos]);
+const lineGeo = new THREE.BufferGeometry().setFromPoints([ROD_TIP.clone(), bobPos.clone()]);
 const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffffff })); line.visible = false; line.frustumCulled = false; scene.add(line);
 const bobRing = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 20), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }));
 bobRing.rotation.x = -Math.PI / 2; bobRing.visible = false; scene.add(bobRing);
@@ -171,27 +182,113 @@ const world = {
         if (o.ready) { o.readyBub = M.bubble(CROPS.find((c) => c.id === b.crop).icon); o.readyBub.position.y = 1.5; o.g.add(o.readyBub); }
       }
     });
+    while (TRAPS.length < S.traps.length) TRAPS.push(mkTrap());
+    while (TRAPS.length > S.traps.length) rmTrap(TRAPS.pop());
     TRAPS.forEach((o, i) => {
-      const open = i < S.trapsN, t = S.traps[i], run = open && !!t, ready = run && trapLeft(t) === 0;
-      o.stake.visible = !run; o.trap.visible = run; o.ring.visible = run && !ready; o.bub.visible = ready;
-      o.stake.scale.setScalar(open ? 1 : 0.6);
+      const t = S.traps[i], st = trapState(t);
+      o.g.position.set(t.x, 0, t.z); o.hit.position.set(t.x, 0.8, t.z); o.hit.userData.idx = i;
+      o.ring.visible = st === 'run'; o.bub.visible = st === 'ready';
     });
     eggBub.visible = S.nest.trungga + S.nest.trungvit >= 1;
   },
-  bobber(on, bite = false) { bobOn = on; bobBite = bite; bobber.visible = line.visible = on; bobRing.visible = on; },
+  bobber(on, bite = false) {
+    if (on && !bobOn) { const dx = POND.x - P.x, dz = POND.z - P.z, L = Math.hypot(dx, dz) || 1, r = Math.min(3.4, L * 0.85); bobPos.set(P.x + (dx / L) * r, 0.12, P.z + (dz / L) * r); player.rotation.y = Math.atan2(dx, dz); }
+    rodM.visible = on; bobOn = on; bobBite = bite; bobber.visible = line.visible = on; bobRing.visible = on;
+  },
+  zone(v) { zone.visible = v; },
+  shallow(x, z) { const n = ((x - POND.x) / POND.rx) ** 2 + ((z - POND.z) / POND.rz) ** 2; return n <= 0.98 && n >= 0.3; },
+  dist(x, z) { return Math.hypot(P.x - x, P.z - z); },
+  near, approach,
 };
 
-// ---------- Chạm ----------
-const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-let down = null;
-canvas.addEventListener('pointerdown', (e) => (down = { x: e.clientX, y: e.clientY, t: performance.now() }));
+// ---------- Nhân vật ----------
+const player = M.player(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
+const P = player.position;
+const onDock = (x, z) => x > 1.5 && x < 4.5 && z > -1.9 && z < -0.5;
+const SOLID = [[HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5]];
+const blocked = (x, z) => (inPond(x, z, 0.97) && !onDock(x, z)) || Math.hypot(x, z) > 14.5 || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
+const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4 };
+const MIND = { trap: 0, coop: 2.0, bed: 1.4, stall: 2.0, house: 2.8 };
+const objPos = (kind, idx) => kind === 'trap' ? [S.traps[idx].x, S.traps[idx].z] : kind === 'coop' ? [COOP.x, COOP.z] : kind === 'bed' ? BED_POS[idx] : kind === 'stall' ? [4.2, 6.2] : [HOUSE.x, HOUSE.z];
+let go = null; // {x, z, kind, idx, stuck}
+function near(kind, idx = 0) {
+  if (kind === 'pond') return inPond(P.x, P.z, 1.35);
+  const [x, z] = objPos(kind, idx); return Math.hypot(P.x - x, P.z - z) <= REACH[kind];
+}
+function approach(kind, idx = 0) {
+  if (near(kind, idx)) { go = null; return game.interact(kind, idx); }
+  if (kind === 'pond') { go = { x: 3.0, z: -1.2, kind, idx, stuck: 0 }; return; }
+  const [ox, oz] = objPos(kind, idx), dx = P.x - ox, dz = P.z - oz, L = Math.hypot(dx, dz) || 1;
+  for (let d = MIND[kind]; d < 16; d += 0.4) {
+    const x = ox + (dx / L) * d, z = oz + (dz / L) * d;
+    if (!blocked(x, z)) { go = { x, z, kind, idx, stuck: 0 }; return; }
+  }
+}
+const joy = { x: 0, y: 0 };
+const SPEED = 3.3;
+const stepPlayer = (dt, now) => {
+  let mx = 0, mz = 0;
+  const fx = -Math.sin(az), fz = -Math.cos(az); // hướng nhìn của camera trên mặt đất
+  if (joy.x || joy.y) { go = null; mx = fx * -joy.y + -fz * joy.x; mz = fz * -joy.y + fx * joy.x; }
+  else if (go) {
+    const dx = go.x - P.x, dz = go.z - P.z, L = Math.hypot(dx, dz);
+    if (L < 0.15 || go.stuck > 0.5) { const g = go; go = null; if (near(g.kind, g.idx)) game.interact(g.kind, g.idx); }
+    else { mx = dx / L; mz = dz / L; }
+  }
+  const len = Math.hypot(mx, mz), u = player.userData;
+  if (len > 0.05 && !game.isBusy()) {
+    const v = Math.min(1, len) * SPEED * dt, nx = P.x + (mx / len) * v, nz = P.z + (mz / len) * v;
+    const ox = P.x, oz = P.z;
+    if (!blocked(nx, nz)) { P.x = nx; P.z = nz; } else if (!blocked(nx, P.z)) P.x = nx; else if (!blocked(P.x, nz)) P.z = nz;
+    if (go) go.stuck = Math.hypot(P.x - ox, P.z - oz) < v * 0.3 ? go.stuck + dt : 0;
+    const want = Math.atan2(mx, mz); let d = want - player.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); player.rotation.y += d * Math.min(1, dt * 12);
+    const sw = Math.sin(now * 11) * 0.7; u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.body.position.y = Math.abs(Math.sin(now * 11)) * 0.05;
+  } else { u.legL.rotation.x = u.legR.rotation.x = 0; u.body.position.y = Math.sin(now * 2) * 0.012; }
+  CAMT.lerp(P, Math.min(1, dt * 4));
+};
+
+// joystick
+{
+  const el = document.querySelector('#joy'), knob = el.firstElementChild; let id = null;
+  const set = (e) => {
+    const r = el.getBoundingClientRect(), R = 38;
+    let x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2); const l = Math.hypot(x, y);
+    if (l > R) { x = (x / l) * R; y = (y / l) * R; }
+    knob.style.transform = `translate(${x}px,${y}px)`; joy.x = x / R; joy.y = y / R;
+  };
+  const end = () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; };
+  el.addEventListener('pointerdown', (e) => { id = e.pointerId; el.setPointerCapture(id); set(e); e.stopPropagation(); });
+  el.addEventListener('pointermove', (e) => { if (e.pointerId === id) set(e); });
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+
+// ---------- Chạm / xoay / zoom ----------
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ptrs = new Map(), gp = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.05), gv = new THREE.Vector3();
+let moved = 0, pinch0 = 0, zoom0 = 1;
+const pdist = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
+const aim = (e) => { ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); };
+canvas.addEventListener('pointerdown', (e) => {
+  canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0;
+  if (ptrs.size === 2) { pinch0 = pdist(); zoom0 = zoom; moved = 99; }
+});
+canvas.addEventListener('pointermove', (e) => {
+  const p = ptrs.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+  if (ptrs.size === 1) { moved += Math.abs(dx) + Math.abs(dy); if (moved > 12) az -= dx * 0.008; }
+  else if (ptrs.size === 2) zoom = THREE.MathUtils.clamp((zoom0 * pinch0) / pdist(), 0.55, 1.35);
+});
+const endPtr = (e) => ptrs.delete(e.pointerId);
+canvas.addEventListener('pointercancel', endPtr);
+canvas.addEventListener('wheel', (e) => { zoom = THREE.MathUtils.clamp(zoom * (1 + e.deltaY * 0.001), 0.55, 1.35); }, { passive: true });
 canvas.addEventListener('pointerup', (e) => {
-  if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 14) return;
-  down = null;
-  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const r = ray.intersectObjects(hits, false)[0];
-  if (r) game.interact(r.object.userData.kind, r.object.userData.idx);
+  const tap = ptrs.size === 1 && moved <= 12; endPtr(e);
+  if (!tap) return;
+  aim(e);
+  if (game.isPlacing()) { if (ray.ray.intersectPlane(gp, gv)) game.placeAt(gv.x, gv.z); return; }
+  if (game.isBusy()) return;
+  const r = ray.intersectObjects([...hits, ...trapHits], false)[0];
+  if (r) return approach(r.object.userData.kind, r.object.userData.idx);
+  if (ray.ray.intersectPlane(gp, gv) && !blocked(gv.x, gv.z)) go = { x: gv.x, z: gv.z, kind: null, stuck: 0 };
 });
 
 // ---------- Vòng lặp ----------
@@ -203,7 +300,9 @@ const dayness = () => {
 };
 const clock = new THREE.Clock();
 let first = true, nextSlow = 0;
+let fpsN = 0;
 const loop = () => {
+  fpsN++;
   const dt = Math.min(0.05, clock.getDelta()), now = clock.elapsedTime;
   if (document.hidden) return requestAnimationFrame(loop);
   const d = dayness();
@@ -230,7 +329,8 @@ const loop = () => {
   // phao
   if (bobOn) {
     bobber.position.set(bobPos.x, 0.12 + Math.sin(now * 3) * 0.03 - (bobBite ? 0.1 + Math.abs(Math.sin(now * 18)) * 0.08 : 0), bobPos.z);
-    const p = line.geometry.attributes.position; p.setXYZ(1, bobber.position.x, bobber.position.y, bobber.position.z); p.needsUpdate = true;
+    ROD_TIP.set(-0.43, 1.69, 0); rodM.updateWorldMatrix(true, false); rodM.localToWorld(ROD_TIP);
+    const p = line.geometry.attributes.position; p.setXYZ(0, ROD_TIP.x, ROD_TIP.y, ROD_TIP.z); p.setXYZ(1, bobber.position.x, bobber.position.y, bobber.position.z); p.needsUpdate = true;
     bobRing.position.set(bobPos.x, 0.13, bobPos.z); const k = (now * (bobBite ? 3 : 0.8)) % 1; bobRing.scale.setScalar(0.6 + k * 1.6); bobRing.material.opacity = 0.7 * (1 - k);
   }
   // lờ + bong bóng nảy
@@ -239,6 +339,7 @@ const loop = () => {
   eggBub.position.y = 2.8 + Math.sin(now * 4) * 0.12; stallLabel.position.y = 3.6 + Math.sin(now * 2) * 0.08;
   smoke.forEach((s, i) => { const k = (now * 0.3 + i / smoke.length) % 1; s.position.set(0.9 + k * 0.5, 3.3 + k * 1.8, -0.4); s.scale.setScalar(0.5 + k * 1.2); s.material.opacity = 0.5 * (1 - k); });
 
+  stepPlayer(dt, now); placeCam();
   if (now > nextSlow) { nextSlow = now + 1; world.refresh(); }
   renderer.render(scene, camera);
   if (first) { first = false; const l = document.querySelector('#load'); l.style.opacity = 0; setTimeout(() => l.remove(), 500); }
@@ -253,6 +354,6 @@ game.after(); save();
 requestAnimationFrame(loop);
 addEventListener('pagehide', () => { tick(); save(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); world.refresh(); } });
-window.__game = { S, world, game };
+window.__game = { S, world, game, P, proj: (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, az: () => az, go: () => go, fps: () => fpsN };
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -1,9 +1,10 @@
-import { S, save, tick, add, stageOf, bedReady, trapLeft, nestCap, questDone, reset } from './state.js';
+import { S, save, tick, add, stageOf, bedReady, trapLeft, trapState, nestCap, questDone, reset } from './state.js';
 import { FISH, CROPS, EGGS, GRAIN, BAIT, TRAP_TIMES, UP, COOP_CAP, ANIMAL, QUESTS, priceMul, MIN } from './data.js';
 import { sfx, buzz, unlock } from './sfx.js';
 
 const $ = (s) => document.querySelector(s);
-let world, cur = null, pressed = false;
+let world, cur = null, pressed = false, placing = false, P = null;
+const sync = () => { document.body.classList.toggle('busy', !!cur || F.on); $('#hint').hidden = !placing; world?.zone(placing); };
 
 const fmt = (ms) => {
   const s = Math.ceil(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60;
@@ -18,8 +19,8 @@ export const toast = (msg, ms = 2400) => {
 
 // ---------- Bottom sheet ----------
 const draw = () => { if (cur) $('#sheetBody').innerHTML = cur(); };
-const open = (fn) => { cur = fn; draw(); $('#sheet').hidden = false; $('#back').hidden = false; $('#sheet').scrollTop = 0; };
-const close = () => { cur = null; $('#sheet').hidden = true; $('#back').hidden = true; };
+const open = (fn) => { cur = fn; draw(); $('#sheet').hidden = false; $('#back').hidden = false; $('#sheet').scrollTop = 0; sync(); };
+const close = () => { cur = null; $('#sheet').hidden = true; $('#back').hidden = true; sync(); };
 
 const hud = () => {
   $('#coins').textContent = `🪙 ${S.coins}`;
@@ -48,13 +49,14 @@ const pickFish = () => {
 };
 const trapYield = (ms) => Math.min(14, Math.floor(2 * Math.sqrt(ms / MIN)));
 
+const timeRows = (data) => TRAP_TIMES.map((x, k) => `<div class="row"><div class="tx">${x.label}<small>Khoảng ${trapYield(x.ms)} con</small></div><button class="btn" data-a="${data}" data-v="${k}" ${S.coins < BAIT ? 'disabled' : ''}>Thả lờ</button></div>`).join('');
+const TIP = 'Mẹo ngư dân: lờ đặt ở nước nông ven bờ, chỗ có bóng râm và lau sậy, cá ra kiếm ăn đêm nên để lâu thì được nhiều.';
+const placePanel = () => `<h2>🪤 Thả lờ ở đây</h2><p>Mồi tốn ${coin(BAIT)}. Lờ chạy cả khi bạn thoát game (tối đa 8 giờ). ${TIP}</p>${timeRows('place')}`;
 const trapPanel = (i) => () => {
-  if (i >= S.trapsN) return `<h2>🪤 Chỗ đặt lờ ${i + 1}</h2><p>Chưa mở. Nâng cấp ở 🏠 Nhà để có thêm lờ.</p>`;
   const t = S.traps[i];
-  if (!t) {
-    return `<h2>🪤 Đặt lờ</h2><p>Mồi tốn ${coin(BAIT)}. Lờ chạy cả khi bạn thoát game (tối đa 8 giờ). Càng lâu càng nhiều cá.</p>` +
-      TRAP_TIMES.map((x, k) => `<div class="row"><div class="tx">${x.label}<small>Khoảng ${trapYield(x.ms)} con</small></div><button class="btn" data-a="settrap" data-v="${i}:${k}" ${S.coins < BAIT ? 'disabled' : ''}>Thả lờ</button></div>`).join('');
-  }
+  if (!t) return '<h2>🪤 Lờ</h2>';
+  const st = trapState(t);
+  if (st === 'idle') return `<h2>🪤 Lờ ${i + 1} đang rảnh</h2><p>Mồi tốn ${coin(BAIT)}.</p>${timeRows('settrap').replace(/data-a="settrap" data-v="(\d)"/g, `data-a="settrap" data-v="${i}:$1"`)}<button class="btn gray big" data-a="pickup" data-v="${i}">Nhấc lờ lên (đặt lại chỗ khác)</button>`;
   const left = trapLeft(t), el = Date.now() - t.start, pct = Math.min(100, (el / t.ms) * 100), n = trapYield(Math.min(el, t.ms));
   return `<h2>🪤 Lờ ${i + 1}</h2><div class="bar"><i style="width:${pct}%"></i></div>
     <p>${left ? `Còn <b>${fmt(left)}</b> nữa là đầy. Hiện có khoảng ${n} con.` : `Lờ đã đầy: <b>${n} con</b>!`}</p>
@@ -126,9 +128,9 @@ const house = () => {
 // ---------- Câu cá ----------
 const F = { on: false };
 const fishCard = (html) => { const el = $('#fish'); el.hidden = false; el.innerHTML = `<div class="card">${html}</div>`; };
-const fishEnd = () => { F.on = false; cancelAnimationFrame(F.raf); clearTimeout(F.t); world.bobber(false); $('#fish').hidden = true; };
+const fishEnd = () => { F.on = false; sync(); cancelAnimationFrame(F.raf); clearTimeout(F.t); world.bobber(false); $('#fish').hidden = true; };
 const fishIdle = () => fishCard(`<h3>🎣 Cắm câu</h3><p>Quăng cần, đợi phao nhúng rồi chạm thật nhanh.</p><button class="btn big" data-a="cast">Quăng cần</button><p><button class="btn gray" data-a="fishend">Thôi</button></p>`);
-const startFishing = () => { close(); F.on = true; fishIdle(); };
+const startFishing = () => { close(); F.on = true; sync(); fishIdle(); };
 const cast = () => {
   sfx.splash(); world.bobber(true); fishCard(`<h3>Đợi cá cắn…</h3><p>🎣 Phao đang nổi, kiên nhẫn nhé.</p><button class="btn gray" data-a="fishend">Thu cần</button>`);
   F.t = setTimeout(() => {
@@ -174,11 +176,17 @@ const spend = (n) => (S.coins >= n ? ((S.coins -= n), true) : false);
 const ACT = {
   close,
   cast, hook, fishend: fishEnd,
-  settrap(v) { const [i, k] = v.split(':').map(Number); if (!spend(BAIT)) return; S.traps[i] = { start: Date.now(), ms: TRAP_TIMES[k].ms }; S.stats.trapsSet++; sfx.splash(); toast('Đã thả lờ 🪤'); },
+  settrap(v) { const [i, k] = v.split(':').map(Number); if (!spend(BAIT)) return; Object.assign(S.traps[i], { start: Date.now(), ms: TRAP_TIMES[k].ms }); S.stats.trapsSet++; sfx.splash(); toast('Đã thả lờ 🪤'); close(); },
+  place(v) {
+    if (!P || S.traps.length >= S.trapsN || !spend(BAIT)) return;
+    S.traps.push({ x: P.x, z: P.z, start: Date.now(), ms: TRAP_TIMES[+v].ms }); S.stats.trapsSet++; P = null; placing = false; sfx.splash(); toast('Đã thả lờ 🪤'); close();
+  },
+  pickup(v) { S.traps.splice(+v, 1); sfx.pop(); toast('Đã nhấc lờ lên. Bấm 🪤 để đặt lại.'); close(); },
+  unplace() { placing = false; P = null; sync(); },
   takeTrap(v) {
     const i = +v, t = S.traps[i], n = trapYield(Math.min(Date.now() - t.start, t.ms)), got = {};
     for (let k = 0; k < n; k++) { const f = pickFish(); add('fish', f.id); got[f.name] = (got[f.name] || 0) + 1; S.stats.fish++; }
-    S.traps[i] = null; sfx.ok(); toast(`Thu ${n} con: ` + Object.entries(got).map(([a, b]) => `${a} ×${b}`).join(', '), 3500); close();
+    Object.assign(t, { start: 0, ms: 0 }); sfx.ok(); toast(`Thu ${n} con: ` + Object.entries(got).map(([a, b]) => `${a} ×${b}`).join(', '), 3500); close();
   },
   feed() {
     if (S.inv.grain < 1) { toast('Hết thóc — mua ở chợ 🧺'); return; }
@@ -207,10 +215,24 @@ const ACT = {
   reset() { if (confirm('Xoá hết tiến trình và chơi lại?')) reset(); },
 };
 
+export const isBusy = () => F.on;
+export const isPlacing = () => placing;
+export const startPlace = () => {
+  if (F.on) return;
+  if (S.traps.length >= S.trapsN) return toast(`Đã đặt đủ ${S.trapsN} lờ. Nâng cấp thêm ở 🏠 Nhà.`, 3200);
+  close(); placing = true; sync();
+};
+export const placeAt = (x, z) => {
+  if (S.traps.length >= S.trapsN) return;
+  if (!world.shallow(x, z)) return toast('Đặt lờ ở chỗ nước nông, gần bờ nhé 🌾');
+  if (S.traps.some((t) => Math.hypot(t.x - x, t.z - z) < 1.1)) return toast('Chỗ này đã có lờ rồi');
+  if (world.dist(x, z) > 8) return toast('Đi lại gần ao hơn rồi hẵng thả lờ 🚶');
+  P = { x, z }; sfx.tap(); open(placePanel);
+};
 export const interact = (kind, idx) => {
   if (F.on) return;
   unlock(); sfx.tap();
-  if (kind === 'pond') return startFishing();
+  if (kind === 'pond') return world.near('pond') ? startFishing() : world.approach('pond', 0);
   if (kind === 'trap') return open(trapPanel(idx));
   if (kind === 'coop') return open(coopPanel);
   if (kind === 'bed') return open(bedPanel(idx));
@@ -222,9 +244,9 @@ export const init = (w) => {
   world = w;
   document.addEventListener('click', (e) => {
     const o = e.target.closest('[data-open]');
-    if (o) { unlock(); sfx.tap(); if (F.on && o.dataset.open !== 'fish') return; if (o.dataset.open === 'fish') return F.on ? undefined : startFishing(); return open({ market, house }[o.dataset.open]); }
+    if (o) { unlock(); sfx.tap(); if (F.on && o.dataset.open !== 'fish') return; if (o.dataset.open === 'fish') return F.on ? undefined : interact('pond', 0); if (o.dataset.open === 'trap') return startPlace(); return open({ market, house }[o.dataset.open]); }
     const a = e.target.closest('[data-a]');
-    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook'].includes(a.dataset.a)) after(); return; }
+    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace'].includes(a.dataset.a)) after(); return; }
     if (e.target.id === 'back') close();
     if (e.target.closest('#snd')) { unlock(); ACT.music(); save(); }
   });

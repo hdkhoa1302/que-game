@@ -200,3 +200,15 @@ export const cloud = () => {
   [[0, 0, 0, 1.1], [1, 0.1, 0.2, 0.8], [-1, 0, -0.1, 0.8], [0.4, 0.3, 0, 0.7]].forEach(([x, y, z, s]) => b.ball(0xffffff, [x, y, z], [s * 1.1, s * 0.6, s * 0.8], 6));
   return b.mesh();
 };
+
+// Nhân vật: nón lá + áo xanh; chân là nhóm riêng (pivot ở hông) để đu đưa khi đi.
+export const player = () => {
+  const g = new THREE.Group();
+  const body = new B().box(0x3f7fbf, [0, 0.62, 0], [0.36, 0.44, 0.22]).ball(0xf1c9a0, [0, 0.98, 0], [0.17, 0.17, 0.17], 6)
+    .cone(0xe8c75a, [0, 1.17, 0], 0.36, 0.2, 8).box(0xf1c9a0, [0.24, 0.62, 0], [0.08, 0.36, 0.1]).box(0xf1c9a0, [-0.24, 0.62, 0], [0.08, 0.36, 0.1]).mesh();
+  const leg = (x) => { const p = new THREE.Group(), m = new B().box(0x5a4632, [0, -0.2, 0], [0.13, 0.4, 0.15]).mesh(); p.add(m); p.position.set(x, 0.4, 0); return p; };
+  const legL = leg(-0.1), legR = leg(0.1);
+  g.add(body, legL, legR, blob(0.32));
+  g.userData = { body, legL, legR };
+  return g;
+};

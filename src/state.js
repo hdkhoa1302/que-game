@@ -7,7 +7,7 @@ const fresh = () => ({
   inv: { fish: {}, crop: {}, egg: {}, grain: 0 },
   rod: 1, house: 1, coop: 1,
   trapsN: 1, bedsN: 3,
-  traps: [null, null, null, null], // {start, ms}
+  traps: [], // {x, z, start, ms}; start=0: lờ đang rảnh
   beds: [null, null, null, null, null, null], // {crop, progress, last, waterUntil}
   chickens: 2, ducks: 1,
   fedUntil: 0, nest: { trungga: 0, trungvit: 0 }, last: Date.now(),
@@ -18,7 +18,11 @@ const fresh = () => ({
 export const S = (() => {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY));
-    if (raw && raw.coins != null) return { ...fresh(), ...raw };
+    if (raw && raw.coins != null) {
+      const DEF = [[4.1, 0.9], [8.6, 1.5], [9.9, -1.9], [6.7, -3.9]]; // bản lưu cũ: lờ cố định
+      raw.traps = (raw.traps || []).filter(Boolean).map((t, i) => (t.x == null ? { x: DEF[i][0], z: DEF[i][1], ...t } : t));
+      return { ...fresh(), ...raw };
+    }
   } catch {}
   return fresh();
 })();
@@ -45,7 +49,8 @@ const growBed = (b, now) => {
   b.last = now;
 };
 
-export const trapLeft = (t, now = Date.now()) => (t ? Math.max(0, t.start + Math.min(t.ms, TRAP_CAP) - now) : 0);
+export const trapLeft = (t, now = Date.now()) => (t && t.start ? Math.max(0, t.start + Math.min(t.ms, TRAP_CAP) - now) : 0);
+export const trapState = (t, now = Date.now()) => (!t.start ? 'idle' : trapLeft(t, now) ? 'run' : 'ready');
 
 // Đẩy thời gian về hiện tại: cây lớn, gà vịt đẻ. Gọi định kỳ và lúc mở game (bù offline).
 export const tick = (now = Date.now()) => {
@@ -67,7 +72,7 @@ export const questDone = () => {
 export const reset = () => { localStorage.removeItem(KEY); location.reload(); };
 
 export const offlineSummary = (before) => {
-  const ts = S.traps.slice(0, S.trapsN).filter((t) => t && trapLeft(t) === 0).length;
+  const ts = S.traps.filter((t) => trapState(t) === 'ready').length;
   const bs = S.beds.filter(bedReady).length;
   const eggs = Math.floor(S.nest.trungga + S.nest.trungvit);
   const away = Date.now() - before;
