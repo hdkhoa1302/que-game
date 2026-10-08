@@ -83,3 +83,28 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
   assert.ok(ext.chicken <= 3 && ext.duck <= 3, `tuyệt chủng quá nhiều: ${JSON.stringify(ext)}`);
   console.log('ổn định đàn (30 seed × 12 năm):', JSON.stringify(ext));
 }
+
+// 10. vật thể khai thác: sinh xác định, đủ loại, mọc lại theo ngày, đúng mùa
+{
+  const { genObjects, objAvail, keepOut } = await import('./src/objs.js');
+  const { OBJ, TOOLS, ZONES } = await import('./src/data.js');
+  const a = genObjects(), b = genObjects();
+  assert.deepEqual(a, b, 'vị trí vật thể phải xác định');
+  assert.ok(a.length > 200 && a.every((o) => !keepOut(o.x, o.z)), 'đủ vật thể, không đè khu nhà vườn');
+  for (const k of Object.keys(OBJ)) assert.ok(a.some((o) => o.kind === k), `thiếu loại ${k}`);
+  const tree = a.find((o) => o.kind === 'tree'), snail = a.find((o) => o.kind === 'snail'), dien = a.find((o) => o.kind === 'dien');
+  const s = { obj: {} };
+  assert.ok(objAvail(s, tree, 10, 1)); s.obj[tree.id] = 10 + OBJ.tree.regrow;
+  assert.ok(!objAvail(s, tree, 10, 1) && !objAvail(s, tree, 15, 1) && objAvail(s, tree, 16, 1), 'mọc lại sau regrow ngày');
+  assert.ok(!objAvail(s, snail, 1, 0) && objAvail(s, snail, 1, 1), 'ốc chỉ có từ đầu mưa');
+  assert.ok(!objAvail(s, dien, 1, 2) && objAvail(s, dien, 1, 3), 'điên điển chỉ mùa nước nổi');
+  // mọi công cụ chế được từ nguyên liệu khai thác được; khởi đầu có thể dựng bàn thợ
+  const yields = new Set(Object.values(OBJ).flatMap((o) => Object.keys(o.yield)));
+  for (const t of Object.values(TOOLS)) for (const tr of t.tiers.slice(1)) for (const r of Object.keys(tr.cost)) assert.ok(yields.has(r), `không khai thác được ${r}`);
+  const { BUILD, START_RES } = await import('./src/data.js');
+  assert.ok(Object.entries(BUILD.ban.cost).every(([r, n]) => (START_RES[r] || 0) >= n), 'đủ nguyên liệu khởi đầu dựng bàn thợ');
+  // tay không lấy được go, da, soi (để chế công cụ đầu tiên): cành khô, đá cuội, cỏ dại
+  const hand = new Set(Object.values(OBJ).filter((o) => !o.tool).flatMap((o) => Object.keys(o.yield)));
+  for (const r of ['go', 'da', 'soi']) assert.ok(hand.has(r), `tay không phải lấy được ${r}`);
+  console.log(`vật thể: ${a.length} cái, ${ZONES.length} khu — OK`);
+}

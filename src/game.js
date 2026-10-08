@@ -1,5 +1,5 @@
 import { S, save, tick, add, stageOf, bedReady, trapLeft, trapState, nestCap, questDone, reset } from './state.js';
-import { FISH, CROPS, EGGS, GRAIN, BAIT, TRAP_TIMES, UP, COOP_CAP, ANIMAL, QUESTS, priceMul, MIN, PHASES, WEATHER, SP, RES, RES_CAP, BUILD, LU_CAP, TRAP_MOD } from './data.js';
+import { FISH, CROPS, EGGS, GRAIN, BAIT, TRAP_TIMES, UP, COOP_CAP, ANIMAL, QUESTS, priceMul, MIN, PHASES, WEATHER, SP, RES, RES_CAP, BUILD, LU_CAP, TRAP_MOD, TOOLS, OBJ, TIER_NAME, TIME_MUL, YIELD_MUL } from './data.js';
 import { phaseAt, dayAt, lifeStage, ofSp, capOf, hatchLimit, addAnimal, dexAll, isFlooded, levelAt, stepF } from './sim.js';
 import { founder, mulberry32, avg, colorOf, sizeGroup } from './genes.js';
 import { sfx, buzz, unlock } from './sfx.js';
@@ -189,7 +189,8 @@ const house = () => {
     upRow('🪤', 'Thêm lờ', 'Thêm một chỗ đặt lờ bên ao', S.trapsN, 4, UP.trap[S.trapsN] ?? 0, 'trap') +
     upRow('🌱', 'Thêm luống rau', 'Thêm một luống trong vườn', S.bedsN, 6, UP.bed[S.bedsN] ?? 0, 'bed') +
     upRow('🐔', 'Mở rộng chuồng', 'Nuôi được nhiều gà vịt hơn', S.coop, 3, UP.coop[S.coop] ?? 0, 'coop') +
-    `<div class="row"><div class="ic">🔨</div><div class="tx">Xây dựng<small>Chuồng tre lá, ổ ấp, lu nước, ủ phân, cầu khỉ, nền cao</small></div><button class="btn gold" data-a="openbuild">Mở</button></div>` +
+    `<div class="row"><div class="ic">🔨</div><div class="tx">Xây dựng<small>Bàn thợ, chuồng tre lá, ổ ấp, lu nước, ủ phân, cầu khỉ, nền cao</small></div><button class="btn gold" data-a="openbuild">Mở</button></div>` +
+    `<div class="row"><div class="ic">🪓</div><div class="tx">Công cụ<small>${Object.entries(TOOLS).map(([k, t]) => `${t.icon}${S.tools[k] || 0}`).join(' ')} (bậc 0–3, chế ở bàn thợ)</small></div><button class="btn" data-a="opencraft">Mở</button></div>` +
     `<div class="row"><div class="ic">📖</div><div class="tx">Sổ giống<small>${Object.keys(S.dex).length}/${dexAll().length} kiểu gà vịt</small></div><button class="btn" data-a="dex">Mở</button></div>` +
     `<p style="margin-top:12px"><button class="btn gray" data-a="music">${S.sound ? '🔊 Tắt' : '🔇 Bật'} âm thanh</button> <button class="btn red" data-a="reset">Chơi lại từ đầu</button></p>`;
 };
@@ -200,10 +201,50 @@ const canBuild = (b) => S.coins >= b.coins && Object.entries(b.cost).every(([k, 
 const buildPanel = () => {
   const bag = Object.entries(S.res).filter(([, n]) => n > 0).map(([k, n]) => `${RES[k].icon}${n}`).join(' ') || 'trống';
   const row = (key, label, done, data) => { const b = BUILD[key]; return `<div class="row"><div class="ic">${b.icon}</div><div class="tx">${label || b.name}<small>${b.desc}<br>${costTxt(b.cost, b.coins)}</small></div><button class="btn ${done ? 'gray' : 'gold'}" data-a="build" data-v="${data}" ${done || !canBuild(b) ? 'disabled' : ''}>${done ? 'Đã xây' : 'Xây'}</button></div>`; };
-  return `<h2>🔨 Xây dựng</h2><p>Túi nguyên liệu: ${bag}. Nhặt ngoài cảnh: 🌴🎋🌾 quanh năm, 🐌 từ đầu mưa, 🌼🪷 mùa nước nổi, 🧱 mùa khô. Mỗi điểm nhặt mọc lại mỗi ngày.</p>` +
-    row('chuong', null, S.builds.chuong, 'chuong') + row('oap', null, S.builds.oap, 'oap') +
+  return `<h2>🔨 Xây dựng</h2><p>Túi nguyên liệu: ${bag}. Khai thác ngoài cảnh bằng công cụ phù hợp (chế ở bàn thợ); vật thể mọc lại sau vài ngày game, ốc từ đầu mưa, điên điển và bông súng mùa nước nổi.</p>` +
+    row('ban', null, S.builds.ban, 'ban') + row('chuong', null, S.builds.chuong, 'chuong') + row('oap', null, S.builds.oap, 'oap') +
     row('lu', `Lu nước mưa (${S.builds.lu || 0}/2)`, (S.builds.lu || 0) >= 2, 'lu') + row('phan', null, S.builds.phan, 'phan') + row('cau', null, S.builds.cau, 'cau') +
     [3, 4, 5].map((i) => row('nen', `Nền cao luống ${i + 1}`, S.builds.nen?.[i], `nen:${i}`)).join('');
+};
+
+// ---------- Bàn thợ ----------
+const craftPanel = () => {
+  if (!S.builds.ban) return `<h2>🔨 Chưa có bàn thợ</h2><p>Dựng bàn thợ trước để chế công cụ: ${costTxt(BUILD.ban.cost, BUILD.ban.coins)}.</p><button class="btn big gold" data-a="openbuild">Mở Xây dựng</button>`;
+  const bag = Object.entries(S.res).filter(([, n]) => n > 0).map(([k, n]) => `${RES[k].icon}${n}`).join(' ') || 'trống';
+  return `<h2>🔨 Bàn thợ</h2><p>Túi: ${bag}. Công cụ dùng mãi, nâng bậc để khai thác nhanh hơn và nhiều hơn.</p>` + Object.entries(TOOLS).map(([k, t]) => {
+    const tier = S.tools[k] || 0, nx = t.tiers[tier + 1], ok = nx && S.coins >= nx.coins && Object.entries(nx.cost).every(([r, n]) => (S.res[r] || 0) >= n);
+    return `<div class="row"><div class="ic">${t.icon}</div><div class="tx">${t.name} · ${TIER_NAME[tier]}<small>Dùng cho ${t.use}${nx ? `<br>Lên ${TIER_NAME[tier + 1]}: ${costTxt(nx.cost, nx.coins)}` : ' · bậc cao nhất'}</small></div><button class="btn ${nx ? 'gold' : 'gray'}" data-a="craft" data-v="${k}" ${ok ? '' : 'disabled'}>${nx ? (tier ? 'Nâng' : 'Chế') : 'Tối đa'}</button></div>`;
+  }).join('');
+};
+
+// ---------- Khai thác vật thể ----------
+let H = null;
+export const isHarvesting = () => !!H;
+const cancelH = () => { if (H) { cancelAnimationFrame(H.raf); H = null; } $('#hbar').hidden = true; };
+export const harvest = (id) => {
+  const o = world.obj(id), d = OBJ[o.kind], day = dayAt(S.world.step);
+  if (!world.objAvail(id)) return toast('Chỗ này đã khai thác, chờ mọc lại 🌱', 1800);
+  const tier = d.tool ? S.tools[d.tool] || 0 : 0;
+  if (d.tool && !tier) return toast(`Cần ${TOOLS[d.tool].icon} ${TOOLS[d.tool].name} để ${d.verb.toLowerCase()}. Chế ở bàn thợ 🔨`, 3200);
+  cancelH(); unlock(); sfx.tap();
+  const dur = d.time * (d.tool ? TIME_MUL[tier] : 1) * 1000, x0 = world.px(), z0 = world.pz(), t0 = performance.now(), bar = $('#hbar');
+  bar.hidden = false; bar.firstElementChild.textContent = `${d.icon} ${d.verb}…`; const fill = bar.querySelector('i'); fill.style.width = '0%';
+  world.face(o.x, o.z); H = { id };
+  const loop = (now) => {
+    const k = Math.min(1, (now - t0) / dur); fill.style.width = k * 100 + '%';
+    if (world.dist(x0, z0) > 0.5 || F.on || cur) return cancelH();
+    if (k >= 1) {
+      const got = [];
+      for (const [r, [lo, hi]] of Object.entries(d.yield)) {
+        const n = Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * (d.tool ? YIELD_MUL[tier] : 1)), add = Math.min(n, RES_CAP - (S.res[r] || 0));
+        if (add > 0) { S.res[r] = (S.res[r] || 0) + add; got.push(`+${add}${RES[r].icon}`); }
+      }
+      S.obj[id] = day + d.regrow; S.stats.picked++; if (o.kind === 'tree') S.stats.chopped++;
+      cancelH(); sfx.pop(); buzz(20); toast(got.length ? got.join('  ') : `Túi đã đầy (${RES_CAP})`, 1400); return after();
+    }
+    H.raf = requestAnimationFrame(loop);
+  };
+  H.raf = requestAnimationFrame(loop);
 };
 
 // ---------- Câu cá ----------
@@ -294,6 +335,13 @@ const ACT = {
   dex() { open(dexPanel); },
   coopback() { open(coopPanel); },
   openbuild() { open(buildPanel); },
+  opencraft() { open(craftPanel); },
+  craft(k) {
+    const t = TOOLS[k], tier = S.tools[k] || 0, nx = t.tiers[tier + 1];
+    if (!S.builds.ban || !nx || S.coins < nx.coins || !Object.entries(nx.cost).every(([r, n]) => (S.res[r] || 0) >= n)) return;
+    S.coins -= nx.coins; for (const [r, n] of Object.entries(nx.cost)) S.res[r] -= n;
+    S.tools[k] = tier + 1; S.stats.crafted++; sfx.ok(); buzz([20, 30]); toast(`${t.icon} ${t.name} ${TIER_NAME[tier + 1]}!`);
+  },
   sellanimal(v) { const a = S.animals.find((x) => x.id === +v); if (!a) return; S.coins += price(a); S.animals.splice(S.animals.indexOf(a), 1); sfx.coin(); toast(`Đã bán, được ${coin(price(a))}`); open(herdPanel); },
   build(v) {
     const [key, idx] = v.split(':'), b = BUILD[key];
@@ -344,6 +392,8 @@ export const interact = (kind, idx) => {
   unlock(); sfx.tap();
   if (kind === 'pond') return world.near('pond') ? startFishing() : world.approach('pond', 0);
   if (kind === 'animal') return open(animalCard(idx));
+  if (kind === 'bench') return open(craftPanel);
+  if (kind === 'obj') return harvest(idx);
   if (kind === 'trap') return open(trapPanel(idx));
   if (kind === 'coop') return open(coopPanel);
   if (kind === 'bed') return open(bedPanel(idx));
@@ -357,18 +407,13 @@ const drain = () => {
 };
 let lastHud = 0;
 export const pulse = () => { tick(); drain(); if (Date.now() - lastHud > 4000) { lastHud = Date.now(); hud(); } };
-export const collect = (kind, id) => {
-  if ((S.res[kind] || 0) >= RES_CAP) return toast(`Túi ${RES[kind].name} đã đầy (${RES_CAP})`, 1200);
-  S.res[kind] = (S.res[kind] || 0) + 1; S.picked[id] = dayAt(S.world.step); S.stats.picked++; sfx.pop(); toast(`+1 ${RES[kind].icon} ${RES[kind].name}`, 900); after();
-};
-
 export const init = (w) => {
   world = w;
   document.addEventListener('click', (e) => {
     const o = e.target.closest('[data-open]');
     if (o) { unlock(); sfx.tap(); if (F.on && o.dataset.open !== 'fish') return; if (o.dataset.open === 'fish') return F.on ? undefined : interact('pond', 0); if (o.dataset.open === 'trap') return startPlace(); return open({ market, house }[o.dataset.open]); }
     const a = e.target.closest('[data-a]');
-    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace', 'view', 'herd', 'dex', 'coopback', 'openbuild'].includes(a.dataset.a)) after(); return; }
+    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace', 'view', 'herd', 'dex', 'coopback', 'openbuild', 'opencraft'].includes(a.dataset.a)) after(); return; }
     if (e.target.id === 'back') close();
     const go = e.target.closest('[data-go]');
     if (go) { unlock(); sfx.tap(); const [k, i] = go.dataset.go.split(':'); return world.approach(k, +i); }

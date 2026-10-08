@@ -226,3 +226,58 @@ export const player = () => {
   g.userData = { body, legL, legR };
   return g;
 };
+
+// ---- Vật thể khai thác: hình đầy đủ + hình sau khi khai thác (null = ẩn) ----
+export const objGeo = (kind) => {
+  const b = new B(), sp = new B();
+  const ring = (n, f) => { for (let i = 0; i < n; i++) f(i, (i / n) * Math.PI * 2); };
+  switch (kind) {
+    case 'tree': tree(b, 0, 0, 1.15); sp.cyl(0x7a4f2b, [0, 0.18, 0], 0.2, 0.26, 0.36, 6).cyl(0xc9a06a, [0, 0.37, 0], 0.18, 0.18, 0.03, 6); break;
+    case 'palm':
+      b.cyl(0x8a6a44, [0.1, 1.0, 0], 0.08, 0.13, 2.0, 5, [0, 0, -0.12]);
+      ring(6, (i, a) => b.cone(0x3f9a45, [0.2 + Math.cos(a) * 0.55, 2.05, Math.sin(a) * 0.55], 0.16, 1.1, 4, [Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2]));
+      b.ball(0x6a4a22, [0.15, 1.9, 0.1], [0.11, 0.11, 0.11], 5); b.ball(0x6a4a22, [0.28, 1.88, -0.08], [0.11, 0.11, 0.11], 5);
+      sp.cyl(0x8a6a44, [0, 0.2, 0], 0.1, 0.14, 0.4, 5); break;
+    case 'bamboo':
+      for (let i = 0; i < 5; i++) { const x = (i % 3 - 1) * 0.2, z = (i >> 1) * 0.14 - 0.1, h = 1.8 + (i % 3) * 0.4; b.cyl(0x9bb04a, [x, h / 2, z], 0.05, 0.06, h, 5); b.cyl(0x6b7a30, [x, h * 0.35, z], 0.068, 0.068, 0.04, 5); b.cyl(0x6b7a30, [x, h * 0.7, z], 0.065, 0.065, 0.04, 5); b.cone(0x5fae45, [x, h, z], 0.26, 0.4, 4); sp.cyl(0x9bb04a, [x, 0.12, z], 0.05, 0.06, 0.24, 5); }
+      break;
+    case 'rock':
+      b.ball(0x9a9a92, [0, 0.4, 0], [0.7, 0.55, 0.6], 5).ball(0x8a8a84, [0.55, 0.25, 0.2], [0.4, 0.3, 0.35], 5).ball(0xa8a8a0, [-0.4, 0.22, -0.3], [0.35, 0.25, 0.3], 5);
+      sp.ball(0x8a8a84, [0.2, 0.1, 0], [0.3, 0.12, 0.25], 5).ball(0x9a9a92, [-0.2, 0.08, 0.1], [0.2, 0.08, 0.18], 5); break;
+    case 'grass':
+      ring(8, (i, a) => b.cone(i % 2 ? 0xc9c25a : 0xb4b84a, [Math.cos(a) * 0.18, 0.3, Math.sin(a) * 0.18], 0.07, 0.65, 3, [Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25]));
+      ring(4, (i, a) => sp.cone(0xb4b84a, [Math.cos(a) * 0.1, 0.07, Math.sin(a) * 0.1], 0.05, 0.14, 3)); break;
+    case 'reed':
+      for (let k = 0; k < 4; k++) { const ox = (k - 1.5) * 0.14, h = 1.1 + (k % 3) * 0.2; b.cyl(0x6a8a3a, [ox, h / 2, 0], 0.02, 0.03, h, 3); b.cyl(0x6b4a2a, [ox, h, 0], 0.05, 0.05, 0.28, 4); sp.cyl(0x6a8a3a, [ox, 0.08, 0], 0.025, 0.03, 0.16, 3); }
+      break;
+    case 'clay':
+      b.cyl(0xb8744a, [0, 0.05, 0], 0.7, 0.8, 0.1, 8).ball(0xc8825a, [0.2, 0.14, 0.1], [0.3, 0.12, 0.25], 5).ball(0xa8643c, [-0.25, 0.12, -0.1], [0.25, 0.1, 0.2], 5);
+      sp.cyl(0x8a5a3a, [0, 0.03, 0], 0.7, 0.8, 0.05, 8); break;
+    case 'snail':
+      b.ball(0x8a7a5a, [0, 0.07, 0], [0.35, 0.1, 0.3], 5).ball(0xe8d8a8, [0.05, 0.2, 0], [0.13, 0.13, 0.13], 5).cone(0xe8d8a8, [0.05, 0.32, 0], 0.08, 0.12, 4); break;
+    case 'berry':
+      b.ball(0x3f8a35, [0, 0.35, 0], [0.55, 0.4, 0.5], 5); ring(6, (i, a) => b.ball(0xd8332a, [Math.cos(a) * 0.38, 0.4 + (i % 2) * 0.15, Math.sin(a) * 0.34], [0.07, 0.07, 0.07], 4));
+      sp.ball(0x3f8a35, [0, 0.35, 0], [0.55, 0.4, 0.5], 5); break;
+    case 'dien':
+      ring(5, (i, a) => { const x = Math.cos(a) * 0.2, z = Math.sin(a) * 0.2; b.cyl(0x4f8a35, [x, 0.3, z], 0.015, 0.02, 0.6, 3); b.ball(0xf6d23f, [x, 0.65, z], [0.1, 0.09, 0.1], 5); }); break;
+    case 'lily':
+      b.cyl(0x4f9a50, [0, 0.03, 0], 0.4, 0.4, 0.04, 8).ball(0xf3a6c0, [0, 0.14, 0], [0.16, 0.12, 0.16], 5).ball(0xf9d0e0, [0, 0.2, 0], [0.09, 0.09, 0.09], 5); break;
+    case 'branch':
+      b.cyl(0x7a5a38, [0, 0.06, 0], 0.04, 0.04, 0.75, 4, [0, 0.3, Math.PI / 2]).cyl(0x6a4a28, [0.05, 0.1, 0.05], 0.035, 0.035, 0.55, 4, [0, -0.9, Math.PI / 2]); break;
+    case 'pebble':
+      b.ball(0x9a9a92, [0, 0.07, 0], [0.16, 0.1, 0.14], 4).ball(0xa8a8a0, [0.2, 0.06, 0.1], [0.12, 0.08, 0.1], 4).ball(0x8a8a84, [-0.15, 0.05, 0.15], [0.1, 0.07, 0.09], 4); break;
+    default: // weed
+      ring(5, (i, a) => b.cone(0x5a8f3a, [Math.cos(a) * 0.1, 0.17, Math.sin(a) * 0.1], 0.06, 0.34, 3, [Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3]));
+  }
+  return { full: b.mesh().geometry, spent: sp.g.length ? sp.mesh().geometry : null };
+};
+
+export const bench = () => {
+  const b = new B();
+  b.box(0x9a6a3a, [0, 0.78, 0], [1.7, 0.14, 0.9]);
+  [[-0.72, -0.35], [0.72, -0.35], [-0.72, 0.35], [0.72, 0.35]].forEach(([x, z]) => b.box(0x7a4f2b, [x, 0.36, z], [0.12, 0.72, 0.12]));
+  b.ball(0x6a6a70, [0.35, 0.98, 0], [0.22, 0.14, 0.14], 5); b.box(0x5a5a60, [0.35, 0.86, 0], [0.34, 0.1, 0.2]);
+  b.box(0x7a4f2b, [-0.35, 0.9, 0.1], [0.4, 0.05, 0.05], [0, 0.4, 0]); b.box(0x5a5a60, [-0.5, 0.93, 0.18], [0.12, 0.1, 0.08], [0, 0.4, 0]);
+  b.box(0xb98a52, [0, 0.2, 0.6], [1.0, 0.4, 0.3]);
+  return b.mesh();
+};

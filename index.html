@@ -69,6 +69,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:ui
 .gene span{width:66px}
 .gene .bar{flex:1;margin:5px 0}
 .gene b{width:30px;text-align:right}
+#hbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-b) + 86px);z-index:4;padding:8px 16px;border-radius:18px;font-weight:800;font-size:14px;width:min(80vw,260px);text-align:center}
+#hbar .bar{margin:6px 0 0}
+#zone{align-self:flex-start;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:800;pointer-events:none}
 #toast{position:fixed;left:50%;top:calc(var(--safe-t) + 150px);transform:translateX(-50%);z-index:9;background:rgba(58,42,26,.94);color:#fff;padding:10px 16px;border-radius:16px;font-weight:800;font-size:14px;max-width:88vw;text-align:center;pointer-events:none;animation:pop .25s;box-shadow:0 6px 16px rgba(0,0,0,.3)}
 @keyframes pop{from{transform:translate(-50%,-10px) scale(.9);opacity:0}}
 #chips button{animation-name:chip}
@@ -88,7 +91,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:ui
 #joy{position:fixed;left:16px;bottom:calc(var(--safe-b) + 84px);width:116px;height:116px;border-radius:50%;background:radial-gradient(circle,rgba(255,248,230,.35),rgba(255,248,230,.6));border:3px solid rgba(255,255,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.2),inset 0 0 0 10px rgba(255,255,255,.12);z-index:2;touch-action:none}
 #joy:before{content:"";position:absolute;inset:14px;border-radius:50%;border:2px dashed rgba(255,255,255,.7)}
 #joy i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#f4e6bd);border:2px solid var(--line);box-shadow:0 3px 0 var(--edge),0 6px 10px rgba(0,0,0,.25)}
-body.busy #joy,body.busy #act,body.busy #chips{display:none}
+body.busy #joy,body.busy #act,body.busy #chips,body.busy #hbar{display:none}
 #load{position:fixed;inset:0;z-index:20;background:linear-gradient(#bfe6f5,#cfeab0);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:22px;gap:10px;transition:opacity .4s}
 #load div{font-size:60px;animation:pulse2 1.2s infinite}
 @keyframes pulse2{50%{transform:scale(1.12)}}
@@ -98,8 +101,9 @@ body.busy #joy,body.busy #act,body.busy #chips{display:none}
 <body>
 <canvas id="c"></canvas>
 <div id="vig"></div>
-<div id="hud"><div id="row1"><div id="coins" class="glass"><b>🪙</b><span id="cv">0</span></div><div id="clock" class="glass"><b>🌦️ Đầu mưa</b><small>Năm 1</small></div></div><div id="quest" class="glass"></div><div id="chips"></div></div>
+<div id="hud"><div id="row1"><div id="coins" class="glass"><b>🪙</b><span id="cv">0</span></div><div id="clock" class="glass"><b>🌦️ Đầu mưa</b><small>Năm 1</small></div></div><div id="quest" class="glass"></div><div id="zone" class="glass">📍 Làng</div><div id="chips"></div></div>
 <div id="fish" hidden></div>
+<div id="hbar" class="glass" hidden><span></span><div class="bar"><i></i></div></div>
 <div id="hint" class="glass" hidden>🪤 Chạm vào chỗ nước nông ven bờ để thả lờ <button class="btn gray" data-a="unplace" style="min-height:34px;padding:6px 12px">Huỷ</button></div>
 <div id="joy"><i></i></div>
 <button id="act" hidden></button>

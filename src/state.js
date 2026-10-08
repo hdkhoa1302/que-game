@@ -1,22 +1,22 @@
-import { CROPS, QUESTS, TRAP_CAP, MIN, START_STEP, SP } from './data.js';
+import { CROPS, QUESTS, TRAP_CAP, MIN, START_STEP, SP, START_RES } from './data.js';
 import { advance, growBed, addAnimal, nestCap as nestCapOf, dayAt } from './sim.js';
 import { mulberry32, founder } from './genes.js';
 
 const KEY = 'que-game-v1';
 
 const fresh = () => ({
-  coins: 100,
+  coins: 80,
   inv: { fish: {}, crop: {}, egg: {}, grain: 0 },
   rod: 1, house: 1, coop: 1,
-  trapsN: 1, bedsN: 3,
+  trapsN: 1, bedsN: 1,
   traps: [], // {x, z, start, ms}; start=0: lờ đang rảnh
   beds: [null, null, null, null, null, null], // {crop, progress, last, waterUntil, fert, flood}
   animals: [], eggs: [], dex: {}, nextId: 1, ev: [],
-  res: {}, builds: { nen: {} }, lu: 0, picked: {},
+  res: { ...START_RES }, builds: { nen: {} }, lu: 0, obj: {}, tools: { rua: 1 }, qv: 2,
   fedUntil: 0, last: Date.now(), t0: Date.now(),
   world: { step: START_STEP, base: START_STEP, seed: (Math.random() * 2 ** 31) | 0, weather: 'nang' },
   quest: 0, won: false, sound: true,
-  stats: { fish: 0, sold: 0, planted: 0, fed: 0, trapsSet: 0, harvested: 0, picked: 0, built: 0, hatched: 0 },
+  stats: { fish: 0, sold: 0, planted: 0, fed: 0, trapsSet: 0, harvested: 0, picked: 0, built: 0, hatched: 0, crafted: 0, chopped: 0 },
 });
 
 // Đàn ban đầu: gà 1 trống 2 mái, vịt 1 trống 1 mái. Bản lưu cũ chuyển số lượng cũ thành cá thể.
@@ -32,12 +32,14 @@ export const S = (() => {
       const DEF = [[4.1, 0.9], [8.6, 1.5], [9.9, -1.9], [6.7, -3.9]]; // bản lưu cũ: lờ cố định
       raw.traps = (raw.traps || []).filter(Boolean).map((t, i) => (t.x == null ? { x: DEF[i][0], z: DEF[i][1], ...t } : t));
       const s = { ...fresh(), ...raw };
+      s.stats = { ...fresh().stats, ...raw.stats }; s.tools = { rua: 1, ...(raw.tools || {}) }; s.obj = raw.obj || {};
+      if (!raw.qv) { s.quest = (raw.quest || 0) + 3; s.qv = 2; } // 3 nhiệm vụ công cụ mới ở đầu danh sách: bản lưu cũ bỏ qua
       if (!raw.animals) { s.animals = []; s.eggs = []; seedHerd(s, raw.chickens ?? 2, raw.ducks ?? 1); delete s.chickens; delete s.ducks; delete s.nest; }
       if (!raw.world) { s.t0 = raw.t0 || Date.now(); s.world = fresh().world; s.world.step = s.world.base = START_STEP; s.t0 = Date.now(); }
       return s;
     }
   } catch {}
-  const s = fresh(); seedHerd(s, 4, 3); return s;
+  const s = fresh(); seedHerd(s, 3, 2); return s;
 })();
 
 export const save = () => {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { S, tick, stageOf, bedReady, trapState, save, offlineSummary } from './state.js';
-import { CROPS, PHASES, WEATHER, SP, SPOTS, RES, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
+import { CROPS, PHASES, WEATHER, SP, OBJ, TOOLS, WORLD_R, WALK_R, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
+import { genObjects, objAvail, zoneAt, keepOut, LAKE, inEll } from './objs.js';
 import { phaseAt, levelAt, stepF, isFlooded, lifeStage, dayAt } from './sim.js';
 import { colorOf, avg } from './genes.js';
 import * as M from './models.js';
@@ -39,26 +40,17 @@ addEventListener('resize', fit); fit(); placeCam();
 const rnd = (() => { let a = 7; return () => ((a = (a * 16807) % 2147483647) - 1) / 2147483646; })();
 const POND = { x: 6.2, z: -1.2, rx: 4.3, rz: 3.2 }, POND0 = { rx: 4.3, rz: 3.2 };
 const inPond = (x, z, k = 1.25) => ((x - POND.x) / (POND.rx * k)) ** 2 + ((z - POND.z) / (POND.rz * k)) ** 2 < 1;
-const keepOut = (x, z) => inPond(x, z) || (x > -9 && x < 2 && z > -0.2 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.5) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 7.5 && z > 4 && z < 8) || (x > 0 && x < 5 && z > -2.2 && z < 0);
 {
   const b = new M.B();
-  b.cyl(0x6fb65a, [0, -0.25, 0], 18, 18.4, 0.5, 28);
-  for (let i = 0; i < 26; i++) { const x = (rnd() - 0.5) * 30, z = (rnd() - 0.5) * 30; if (!keepOut(x, z) && Math.hypot(x, z) < 16) b.ball(i % 2 ? 0x7cc467 : 0x5fa84d, [x, 0, z], [1 + rnd() * 1.5, 0.12, 1 + rnd() * 1.5], 6); }
-  for (let i = 0; i < 70; i++) {
-    const a = rnd() * 6.283, r = 7 + rnd() * 9, x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (keepOut(x, z)) continue;
-    const k = rnd(); k < 0.5 ? M.tree(b, x, z, 0.8 + rnd() * 0.7) : k < 0.65 ? M.rock(b, x, z, 0.8 + rnd()) : k < 0.8 ? M.bush(b, x, z, 0.8 + rnd() * 0.6) : M.flower(b, x, z, [0xf26b8a, 0xffd23f, 0xb487f0, 0xffffff][Math.floor(rnd() * 4)]);
-  }
+  b.cyl(0x6fb65a, [0, -0.25, 0], 58, 58.4, 0.5, 40);
+  for (let i = 0; i < 60; i++) { const x = (rnd() - 0.5) * 100, z = (rnd() - 0.5) * 100; if (!keepOut(x, z)) b.ball(i % 2 ? 0x7cc467 : 0x5fa84d, [x, 0, z], [1 + rnd() * 2, 0.12, 1 + rnd() * 2], 6); }
+  for (let i = 0; i < 150; i++) { const x = (rnd() - 0.5) * 66, z = (rnd() - 0.5) * 66; if (!keepOut(x, z) && Math.hypot(x, z) < WORLD_R) M.flower(b, x, z, [0xf26b8a, 0xffd23f, 0xb487f0, 0xffffff][Math.floor(rnd() * 4)]); }
+  for (let i = 0; i < 26; i++) { const an = (i / 26) * 6.283 + rnd() * 0.2, r = 38 + rnd() * 14, h = 4 + rnd() * 7; b.ball([0x5f9a5a, 0x6aa86a, 0x4f8a5a, 0x7a9a8a][i % 4], [Math.cos(an) * r, 0, Math.sin(an) * r], [h * 1.6, h * 0.55, h * 1.6], 7); } // đồi ở chân trời, không đi tới được
   // đường đất: nhà → vườn → chợ
   [[-4, -2.6], [-3.4, -1.2], [-2.6, 0.4], [-1, 1], [0.6, 2.4], [1.8, 4.2], [3.2, 5.4], [3.6, 3.2], [3.0, 1.4], [2.4, -0.4]].forEach(([x, z]) => b.cyl(0xd2b27a, [x, 0.01, z], 0.6, 0.6, 0.03, 8));
   // hàng rào sân gà vịt
   M.fence(b, -4.6, 8.4, 6, Math.PI / 2); M.fence(b, -1.6, 10.6, 6, 0); M.fence(b, 1.8, 7.6, 4.5, Math.PI / 2);
   M.fence(b, -4.4, 4.2, 5, 0); M.fence(b, 2.4, 4.4, 4, 0);
-  for (let i = 0; i < 18; i++) { // lau sậy ven ao
-    const an = (i / 18) * 6.283, x = POND.x + Math.cos(an) * POND.rx * 1.1, z = POND.z + Math.sin(an) * POND.rz * 1.1;
-    if (x < 3.4 && Math.abs(z + 1.2) < 1.3) continue;
-    for (let k = 0; k < 3; k++) { const ox = x + (k - 1) * 0.12, h = 0.9 + ((i * 7 + k * 3) % 5) * 0.1; b.cyl(0x6a8a3a, [ox, h / 2, z + k * 0.05], 0.02, 0.03, h, 3); b.cyl(0x6b4a2a, [ox, h, z + k * 0.05], 0.05, 0.05, 0.28, 4); }
-  }
   scene.add(b.mesh());
 }
 
@@ -72,13 +64,49 @@ const pond = new THREE.Group();
   pond.add(mud, water); pond.position.set(POND.x, 0, POND.z); pond.userData = { water };
   scene.add(pond);
 }
+const lake = new THREE.Group();
+{
+  const mud = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 24), new THREE.MeshLambertMaterial({ color: 0x8a6a45, flatShading: true })), wat = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 28), new THREE.MeshLambertMaterial({ color: 0x5aa6c8, emissive: 0x0b2a40, flatShading: true }));
+  mud.scale.set(LAKE.rx * 1.12, 1, LAKE.rz * 1.12); mud.position.y = 0.02; wat.scale.set(LAKE.rx, 1, LAKE.rz); wat.position.y = 0.05;
+  lake.add(mud, wat); lake.position.set(LAKE.x, 0, LAKE.z); scene.add(lake);
+}
 const dockM = M.dock(); dockM.position.set(1.7, 0, -1.2); scene.add(dockM);
 const cauM = M.monkeyBridge(); cauM.position.set(4.45, 0, -1.2); cauM.visible = false; scene.add(cauM);
 const oapM = M.nest(); oapM.position.set(-2.2, 0, 6.2); oapM.visible = false; scene.add(oapM);
 const luM = [[-2.6, -3.2], [-1.6, -3.2]].map(([x, z]) => { const m = M.lu(); m.position.set(x, 0, z); m.visible = false; scene.add(m); return m; });
 const phanM = M.manure(); phanM.position.set(-6.6, 0, 7.2); phanM.visible = false; scene.add(phanM);
 const heap = M.manure(); heap.position.set(-6.6, 0, 7.2); heap.scale.setScalar(0.7); heap.visible = false; scene.add(heap); // đống phân thô khi chưa có đống ủ
-const tint = new THREE.Mesh(new THREE.CircleGeometry(18, 28), new THREE.MeshBasicMaterial({ color: 0xd8b058, transparent: true, opacity: 0, depthWrite: false }));
+const BENCH = new THREE.Vector3(-0.2, 0, -3.2);
+const benchM = M.bench(); benchM.position.copy(BENCH); benchM.rotation.y = 0.3; benchM.visible = false; scene.add(benchM);
+const benchHit = M.hit('bench', 0, 2.0, 1.4, 1.2, [BENCH.x, 0.7, BENCH.z]);
+// ---- vật thể khai thác (instanced theo loại) ----
+const OBJS = genObjects(), OI = {}, dummy = new THREE.Object3D();
+for (const kind of Object.keys(OBJ)) {
+  const list = OBJS.filter((o) => o.kind === kind), g = M.objGeo(kind);
+  const mk = (geo) => { const m = new THREE.InstancedMesh(geo, M.MAT, Math.max(1, list.length)); m.frustumCulled = false; m.count = list.length; scene.add(m); return m; };
+  OI[kind] = { list, full: mk(g.full), spent: g.spent ? mk(g.spent) : null };
+  list.forEach((o, i) => { o.i = i; o.st = ''; });
+}
+const putInst = (mesh, i, o, on) => { dummy.position.set(o.x, 0, o.z); dummy.rotation.set(0, o.rot, 0); dummy.scale.setScalar(on ? o.s : 0.0001); dummy.updateMatrix(); mesh.setMatrixAt(i, dummy.matrix); };
+const syncObjs = () => {
+  const day = dayAt(S.world.step), ph = phaseAt(S.world.step);
+  for (const kind in OI) {
+    const g = OI[kind], d = OBJ[kind]; let dirty = false;
+    for (const o of g.list) {
+      const season = !d.phases || d.phases.includes(ph), ok = season && objAvail(S, o, day, ph), st = !season ? 'off' : ok ? 'full' : g.spent ? 'spent' : 'off';
+      if (st === o.st) continue; o.st = st; dirty = true; o.ok = ok;
+      putInst(g.full, o.i, o, st === 'full'); if (g.spent) putInst(g.spent, o.i, o, st === 'spent');
+    }
+    if (dirty) { g.full.instanceMatrix.needsUpdate = true; if (g.spent) g.spent.instanceMatrix.needsUpdate = true; }
+  }
+};
+const pickObj = (cx, cy) => { // chạm gần nhất trong 38px (màn hình) trong các vật thể còn dùng được
+  let best = null, bd = 38;
+  const v = new THREE.Vector3();
+  for (const o of OBJS) { if (o.st !== 'full') continue; v.set(o.x, 0.5, o.z).project(camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * innerWidth - cx, (1 - v.y) / 2 * innerHeight - cy); if (d < bd) { bd = d; best = o; } }
+  return best;
+};
+const tint = new THREE.Mesh(new THREE.CircleGeometry(58, 40), new THREE.MeshBasicMaterial({ color: 0xd8b058, transparent: true, opacity: 0, depthWrite: false }));
 tint.rotation.x = -Math.PI / 2; tint.position.y = 0.012; scene.add(tint);
 const RAIN_N = 220, rainPos = new Float32Array(RAIN_N * 3);
 for (let i = 0; i < RAIN_N; i++) rainPos.set([(rnd() - 0.5) * 22, rnd() * 9, (rnd() - 0.5) * 22], i * 3);
@@ -89,11 +117,11 @@ const rodM = M.rod(); rodM.rotation.y = Math.PI / 2; rodM.position.set(0.22, 0.1
 const ROD_TIP = new THREE.Vector3();
 
 // clouds
-const clouds = [0, 1, 2, 3].map((i) => { const c = M.cloud(); c.position.set(-18 + i * 11, 6 + (i % 2) * 1.5, -9 + i * 3); c.scale.setScalar(0.8 + (i % 3) * 0.2); scene.add(c); return c; });
+const clouds = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => { const c = M.cloud(); c.position.set(-40 + i * 11, 6 + (i % 2) * 1.5, -24 + ((i * 7) % 8) * 6); c.scale.setScalar(0.8 + (i % 3) * 0.2); scene.add(c); return c; });
 
 // fireflies
-const FF = 44, ffPos = new Float32Array(FF * 3), ffSeed = [];
-for (let i = 0; i < FF; i++) { const a = rnd() * 6.283, r = 3 + rnd() * 9; ffSeed.push([Math.cos(a) * r, 0.6 + rnd() * 1.4, Math.sin(a) * r, rnd() * 6]); }
+const FF = 70, ffPos = new Float32Array(FF * 3), ffSeed = [];
+for (let i = 0; i < FF; i++) { const a = rnd() * 6.283, r = 3 + rnd() * 22; ffSeed.push([Math.cos(a) * r, 0.6 + rnd() * 1.4, Math.sin(a) * r, rnd() * 6]); }
 const ffGeo = new THREE.BufferGeometry(); ffGeo.setAttribute('position', new THREE.BufferAttribute(ffPos, 3));
 const ffMat = new THREE.PointsMaterial({ color: 0xfff08a, size: 0.22, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
 const fireflies = new THREE.Points(ffGeo, ffMat); fireflies.frustumCulled = false; scene.add(fireflies);
@@ -186,21 +214,6 @@ const syncAnimals = () => {
   }
 };
 
-// ---------- Điểm nhặt tài nguyên ----------
-const NODES = SPOTS.map(([kind, x, z, phases], id) => {
-  const sp = M.bubble(RES[kind].icon); sp.scale.setScalar(0.95); sp.visible = false; scene.add(sp);
-  return { id, kind, x, z, phases, edge: !!phases && kind !== 'la' && kind !== 'tre' && kind !== 'rom', sp, on: false };
-});
-const syncNodes = () => {
-  const day = dayAt(S.world.step), ph = phaseAt(S.world.step);
-  for (const n of NODES) {
-    if (n.edge) { n.px = POND.x + Math.cos(n.x) * POND.rx * 1.22; n.pz = POND.z + Math.sin(n.x) * POND.rz * 1.22; } else { n.px = n.x; n.pz = n.z; }
-    const season = !n.phases || n.phases.includes(ph), lucky = ((n.id * 131 + day * 17 + (S.world.seed & 0xff)) % 100) < 82;
-    n.on = season && lucky && S.picked[n.id] !== day && !(n.edge && blockedHard(n.px, n.pz));
-    n.sp.visible = n.on; n.sp.position.set(n.px, 0.55, n.pz);
-  }
-};
-
 // ---------- refresh(): đồng bộ thế giới theo state ----------
 const world = {
   refresh() {
@@ -209,7 +222,8 @@ const world = {
     if (coopLv !== coopKey) { if (coopMesh) coopG.remove(coopMesh); coopMesh = M.coop(S.coop, S.builds.chuong); coopG.add(coopMesh); coopLv = coopKey; }
     cauM.visible = !!S.builds.cau; oapM.visible = !!S.builds.oap; luM.forEach((m, i) => (m.visible = i < (S.builds.lu || 0)));
     phanM.visible = !!S.builds.phan; heap.visible = !S.builds.phan && (S.res.phan || 0) >= 3;
-    syncAnimals(); syncNodes();
+    syncAnimals(); syncObjs();
+    benchM.visible = !!S.builds.ban; { const k = hits.indexOf(benchHit); if (S.builds.ban && k < 0) { scene.add(benchHit); hits.push(benchHit); } else if (!S.builds.ban && k >= 0) { scene.remove(benchHit); hits.splice(k, 1); } }
     BEDS.forEach((o, i) => {
       const open = i < S.bedsN, b = S.beds[i];
       o.base.visible = open; o.lock.visible = !open; o.bub.visible = !open;
@@ -243,6 +257,7 @@ const world = {
   shallow(x, z) { const n = ((x - POND.x) / POND.rx) ** 2 + ((z - POND.z) / POND.rz) ** 2; return n <= 0.98 && n >= 0.3; },
   dist(x, z) { return Math.hypot(P.x - x, P.z - z); },
   near, approach,
+  obj: (id) => OBJS[id], objAvail: (id) => OBJS[id].st === 'full', px: () => P.x, pz: () => P.z, face: (x, z) => { player.rotation.y = Math.atan2(x - P.x, z - P.z); },
   onBridge() { return !!S.builds.cau && P.x > 4.6 && onDock(P.x, P.z); },
 };
 
@@ -250,12 +265,11 @@ const world = {
 const player = M.player(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
 const P = player.position;
 const onDock = (x, z) => x > 1.5 && x < (S.builds.cau ? 9.2 : 4.5) && z > -1.9 && z < -0.5;
-const SOLID = [[HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5]];
-const blockedHard = (x, z) => inPond(x, z, 0.97);
-const blocked = (x, z) => (inPond(x, z, 0.97) && !onDock(x, z)) || Math.hypot(x, z) > 14.5 || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
-const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4 };
-const MIND = { trap: 0, coop: 2.0, bed: 1.4, stall: 2.0, house: 2.8 };
-const objPos = (kind, idx) => kind === 'trap' ? [S.traps[idx].x, S.traps[idx].z] : kind === 'coop' ? [COOP.x, COOP.z] : kind === 'bed' ? BED_POS[idx] : kind === 'stall' ? [4.2, 6.2] : [HOUSE.x, HOUSE.z];
+const SOLID = [[HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5], [BENCH.x, BENCH.z, 0.9]];
+const blocked = (x, z) => (inPond(x, z, 0.97) && !onDock(x, z)) || inEll(LAKE, x, z, 0.97) || Math.hypot(x, z) > WALK_R || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
+const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4, bench: 2.8, obj: 1.8 };
+const MIND = { trap: 0, coop: 2.0, bed: 1.4, stall: 2.0, house: 2.8, bench: 1.7, obj: 0.9 };
+const objPos = (kind, idx) => kind === 'trap' ? [S.traps[idx].x, S.traps[idx].z] : kind === 'coop' ? [COOP.x, COOP.z] : kind === 'bed' ? BED_POS[idx] : kind === 'stall' ? [4.2, 6.2] : kind === 'bench' ? [BENCH.x, BENCH.z] : kind === 'obj' ? [OBJS[idx].x, OBJS[idx].z] : [HOUSE.x, HOUSE.z];
 let go = null; // {x, z, kind, idx, stuck}
 function near(kind, idx = 0) {
   if (kind === 'pond') return inPond(P.x, P.z, 1.35);
@@ -271,7 +285,7 @@ function approach(kind, idx = 0) {
   }
 }
 const joy = { x: 0, y: 0 };
-const SPEED = 3.3;
+const SPEED = 4.2;
 const stepPlayer = (dt, now) => {
   let mx = 0, mz = 0;
   const fx = -Math.sin(az), fz = -Math.cos(az); // hướng nhìn của camera trên mặt đất
@@ -289,8 +303,7 @@ const stepPlayer = (dt, now) => {
     if (go) go.stuck = Math.hypot(P.x - ox, P.z - oz) < v * 0.3 ? go.stuck + dt : 0;
     const want = Math.atan2(mx, mz); let d = want - player.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); player.rotation.y += d * Math.min(1, dt * 12);
     const sw = Math.sin(now * 11) * 0.7; u.legL.rotation.x = sw; u.legR.rotation.x = -sw; u.body.position.y = Math.abs(Math.sin(now * 11)) * 0.05;
-  } else { u.legL.rotation.x = u.legR.rotation.x = 0; u.body.position.y = Math.sin(now * 2) * 0.012; }
-  for (const n of NODES) if (n.on && Math.hypot(P.x - n.px, P.z - n.pz) < 0.95) { n.on = false; n.sp.visible = false; game.collect(n.kind, n.id); }
+  } else { u.legL.rotation.x = u.legR.rotation.x = 0; u.body.position.y = Math.sin(now * 2) * 0.012 + (game.isHarvesting() ? Math.abs(Math.sin(now * 12)) * 0.07 : 0); u.body.rotation.x = game.isHarvesting() ? Math.sin(now * 12) * 0.22 : 0; }
   CAMT.lerp(P, Math.min(1, dt * 4));
 };
 
@@ -302,6 +315,8 @@ const pickAction = () => {
   S.traps.forEach((t, i) => add('trap', i, t.x, t.z, '🪤', { idle: 'Thả lờ', run: 'Xem lờ', ready: 'Thu cá' }[trapState(t)]));
   BED_POS.forEach(([x, z], i) => { if (i >= S.bedsN) return; const b = S.beds[i]; add('bed', i, x, z, b ? (bedReady(b) ? '🧺' : '💧') : '🌱', b ? (bedReady(b) ? 'Thu hoạch' : 'Tưới') : 'Gieo hạt'); });
   add('coop', 0, COOP.x, COOP.z, '🐔', 'Chuồng'); add('stall', 0, 4.2, 6.2, '🧺', 'Chợ'); add('house', 0, HOUSE.x, HOUSE.z, '🏠', 'Nhà');
+  if (S.builds.ban) add('bench', 0, BENCH.x, BENCH.z, '🔨', 'Bàn thợ');
+  for (const o of OBJS) { if (o.st !== 'full' || Math.hypot(P.x - o.x, P.z - o.z) > 2.2 || !near('obj', o.id)) continue; const d = OBJ[o.kind], lack = d.tool && !S.tools[d.tool]; c.push({ kind: 'obj', idx: o.id, icon: lack ? '🔒' : d.icon, label: lack ? `Cần ${TOOLS[d.tool].name}` : d.verb, d: Math.hypot(P.x - o.x, P.z - o.z) - 0.8 }); }
   if (near('pond')) c.push({ kind: 'pond', idx: 0, icon: '🎣', label: 'Câu cá', d: Math.hypot(P.x - POND.x, P.z - POND.z) - 3.5 });
   c.sort((a, b) => a.d - b.d);
   game.setAction(!game.isBusy() && !go?.kind ? c[0] || null : null);
@@ -349,6 +364,7 @@ canvas.addEventListener('pointerup', (e) => {
   const r = ray.intersectObjects([...animalHits, ...hits, ...trapHits], false)[0];
   if (r && r.object.userData.kind === 'animal') return game.interact('animal', r.object.userData.idx);
   if (r) return approach(r.object.userData.kind, r.object.userData.idx);
+  const po = pickObj(e.clientX, e.clientY); if (po) return approach('obj', po.id);
   if (ray.ray.intersectPlane(gp, gv) && !blocked(gv.x, gv.z)) go = { x: gv.x, z: gv.z, kind: null, stuck: 0 };
 });
 
@@ -399,7 +415,7 @@ const loop = () => {
   lamp.intensity = (1 - d) * 4; lamp.position.set(HOUSE.x + 1.5, 1.8, HOUSE.z + 2.2);
   ffMat.opacity = Math.max(0, 1 - d * 1.6);
   if (ffMat.opacity > 0.01) for (let i = 0; i < FF; i++) { const s = ffSeed[i]; ffPos[i * 3] = s[0] + Math.sin(now * 0.5 + s[3]) * 0.8; ffPos[i * 3 + 1] = s[1] + Math.sin(now * 0.9 + s[3] * 2) * 0.3; ffPos[i * 3 + 2] = s[2] + Math.cos(now * 0.4 + s[3]) * 0.8; ffGeo.attributes.position.needsUpdate = true; }
-  clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05) * (1 + windK * 5); if (c.position.x > 24) c.position.x = -24; });
+  clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05) * (1 + windK * 5); if (c.position.x > 48) c.position.x = -48; });
   pond.userData.water.material.emissive.setScalar(0.04 + 0.02 * Math.sin(now * 1.5));
 
   SPK.forEach((m) => { const k = Math.max(0, Math.sin(now * 1.6 + m.userData.ph)); m.material.opacity = k ** 6 * 0.9 * d; m.scale.setScalar(0.5 + k); m.rotation.z = now; });
@@ -434,7 +450,7 @@ const loop = () => {
 
   stepPlayer(dt, now); placeCam();
   if (now > nextAct) { nextAct = now + 0.2; pickAction(); }
-  if (now > nextSlow) { nextSlow = now + 1; game.pulse(); world.refresh(); }
+  if (now > nextSlow) { nextSlow = now + 1; game.pulse(); world.refresh(); document.querySelector('#zone').textContent = '📍 ' + zoneAt(P.x, P.z); }
   renderer.render(scene, camera);
   if (first) { first = false; const l = document.querySelector('#load'); l.style.opacity = 0; setTimeout(() => l.remove(), 500); }
   requestAnimationFrame(loop);
@@ -448,6 +464,6 @@ game.after(); save();
 requestAnimationFrame(loop);
 addEventListener('pagehide', () => { tick(); save(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); world.refresh(); } });
-window.__game = { S, world, game, P, proj: (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, az: () => az, go: () => go, fps: () => fpsN };
+window.__game = { S, world, game, P, objs: () => OBJS, proj: (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, az: () => az, go: () => go, fps: () => fpsN };
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
