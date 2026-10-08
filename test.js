@@ -72,7 +72,7 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
   console.log(`chọn lọc: đề kháng TB có áp lực ${withP.toFixed(2)} > đối chứng ${ctrl.toFixed(2)}`);
 }
 
-// 9. ổn định đàn: 30 seed × 12 năm game, nuôi đủ ăn, không can thiệp → tuyệt chủng mỗi loài ≤ 10%
+// 9. ổn định đàn: 30 seed × 12 năm game, nuôi đủ ăn, không can thiệp → không loài nào tuyệt chủng
 {
   let ext = { chicken: 0, duck: 0 };
   for (let k = 0; k < 30; k++) {
@@ -80,6 +80,6 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
     for (let i = 0; i < 12 * 96; i++) advance(s, s.t0 + (s.world.step - s.world.base + 1) * STEP_MS + 1);
     for (const sp of Object.keys(ext)) if (!s.animals.some((a) => a.sp === sp)) ext[sp]++;
   }
-  assert.ok(ext.chicken <= 3 && ext.duck <= 3, `tuyệt chủng quá nhiều: ${JSON.stringify(ext)}`);
+  assert.deepEqual(ext, { chicken: 0, duck: 0 }, `có loài tuyệt chủng: ${JSON.stringify(ext)}`);
   console.log('ổn định đàn (30 seed × 12 năm):', JSON.stringify(ext));
 }

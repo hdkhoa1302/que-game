@@ -122,3 +122,17 @@ QUESTS.push(
   { text: 'Xây một công trình ở 🏠 Nhà → Xây dựng', ok: (s) => s.stats.built >= 1, reward: 40 },
   { text: 'Ấp nở con gà/vịt đầu tiên', ok: (s) => s.stats.hatched >= 1, reward: 60 },
 );
+
+// ===== Ông Trời (bộ não cân bằng làng, chạy trên server, bạn duyệt) =====
+export const BRAIN = {
+  minFarms: 3, // cần ít nhất 3 nông trại báo cáo trong 24 giờ mới đề xuất (làng nhỏ: số liệu quá nhiễu)
+  activeMs: 24 * 60 * MIN,
+  dominant: 0.7, // 1 allele chiếm >70% một locus trong cả làng → thiếu đa dạng
+  econWindowMs: 96 * MIN, // so xu trung vị với 1 năm game trước
+  econMinCoins: 50,
+  inflate: 0.5, // xu trung vị tăng >50%/năm → ép giá
+  deflate: 0.3, // giảm >30%/năm → nâng giá
+  priceDown: 0.8, priceUp: 1.2,
+  epidemic: 0.02, // thêm xác suất ốm mỗi bước cho mỗi bản sao allele bị nhắm
+  historyGapMs: 24 * MIN, // chụp số liệu mỗi mùa game
+};

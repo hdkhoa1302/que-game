@@ -15,7 +15,7 @@ const fresh = () => ({
   res: {}, builds: { nen: {} }, lu: 0, picked: {},
   fedUntil: 0, last: Date.now(), t0: Date.now(),
   world: { step: START_STEP, base: START_STEP, seed: (Math.random() * 2 ** 31) | 0, weather: 'nang' },
-  quest: 0, won: false, sound: true,
+  quest: 0, won: false, sound: true, farmId: Math.random().toString(36).slice(2, 12).padEnd(8, '0'),
   stats: { fish: 0, sold: 0, planted: 0, fed: 0, trapsSet: 0, harvested: 0, picked: 0, built: 0, hatched: 0 },
 });
 
@@ -34,6 +34,7 @@ export const S = (() => {
       const s = { ...fresh(), ...raw };
       if (!raw.animals) { s.animals = []; s.eggs = []; seedHerd(s, raw.chickens ?? 2, raw.ducks ?? 1); delete s.chickens; delete s.ducks; delete s.nest; }
       if (!raw.world) { s.t0 = raw.t0 || Date.now(); s.world = fresh().world; s.world.step = s.world.base = START_STEP; s.t0 = Date.now(); }
+      if (!s.farmId) s.farmId = fresh().farmId;
       return s;
     }
   } catch {}

@@ -1,5 +1,5 @@
 // Mô phỏng thế giới theo bước xác định (1 bước = 1 phút thật). Thuần: nhận S, không đụng DOM.
-import { STEP_MS, DAY_STEPS, PHASE_STEPS, MAX_CATCHUP, PHASES, WEATHER, WEATHER_P, FLOOD_LEVEL, SP, AGE, DEX_REWARD, NEST_PER_COOP, RES_CAP, CROPS, COOP_CAP } from './data.js';
+import { STEP_MS, YEAR_STEPS, DAY_STEPS, PHASE_STEPS, MAX_CATCHUP, PHASES, WEATHER, WEATHER_P, FLOOD_LEVEL, SP, AGE, DEX_REWARD, NEST_PER_COOP, RES_CAP, CROPS, COOP_CAP, BRAIN } from './data.js';
 import { rngAt, founder, cross, avg, colorOf, sizeGroup } from './genes.js';
 
 export const phaseAt = (n) => Math.floor(n / PHASE_STEPS) % 4;
@@ -17,6 +17,9 @@ export const levelAt = (nf) => {
   const q = nf / PHASE_STEPS - 0.5, i = Math.floor(q), t = q - i, k = t * t * (3 - 2 * t), m = (x) => ((x % 4) + 4) % 4;
   return PHASES[m(i)].level + (PHASES[m(i + 1)].level - PHASES[m(i)].level) * k;
 };
+// sự kiện chung do Ông Trời đề xuất và trưởng làng đã duyệt (nằm trong S.world.events, xác định theo bước)
+export const eventsAt = (S, n) => (S.world.events || []).filter((e) => n >= e.from && n < e.to);
+export const worldPrice = (S, n = S.world.step) => eventsAt(S, n).reduce((m, e) => (e.type === 'gia' ? m * e.mul : m), 1);
 export const nestCap = (S) => NEST_PER_COOP * S.coop;
 export const isFlooded = (S, i, now = Date.now()) => i >= 3 && !S.builds.nen?.[i] && levelAt(stepF(S, now)) > FLOOD_LEVEL;
 
@@ -47,18 +50,33 @@ export const addAnimal = (S, sp, sex, genome, born, reward = true) => {
 export const ev = (S, msg) => { S.ev.push(msg); if (S.ev.length > 6) S.ev.shift(); };
 const gain = (S, k, n) => { S.res[k] = Math.min(RES_CAP, (S.res[k] || 0) + n); };
 
+// Mái cuối cùng chết tự nhiên (già/bệnh, không phải bán): hàng xóm cho một mái tơ, mỗi loài tối đa 1 lần/năm game.
+const GIFT_GAP = YEAR_STEPS / DAY_STEPS;
+const rescue = (S, sp, day, rng) => {
+  if (S.animals.some((a) => a.sp === sp && a.sex === 'f')) return;
+  S.gift ??= {};
+  if (S.gift[sp] != null && day - S.gift[sp] < GIFT_GAP) return;
+  S.gift[sp] = day;
+  addAnimal(S, sp, 'f', founder(rng), day - AGE.adult + 1);
+  ev(S, `🏡 Hàng xóm thấy đàn ${SP[sp].name.toLowerCase()} hết mái, cho bạn một con mái tơ.`);
+};
+
 const dayStart = (S, n, t, day, rng) => {
   const w = S.world;
   if (w.weather === 'chuong') ev(S, '💨 Gió chướng thổi: lờ đánh bắt kém, gà vịt ngoài chuồng đẻ ít.');
   // già chết
-  for (const a of [...S.animals]) if (day - a.born >= AGE.max || (day - a.born >= AGE.old && rng() < 0.3)) { S.animals.splice(S.animals.indexOf(a), 1); ev(S, `${SP[a.sp].icon} Một con ${SP[a.sp].name.toLowerCase()} già đã mất.`); }
+  // con trưởng thành cuối cùng của một giới thì chỉ mất khi tới tuổi tối đa, để đàn kịp có lứa kế (tránh tuyệt chủng)
+  for (const a of [...S.animals]) {
+    const age = day - a.born, last = adultsOf(S, a.sp, a.sex, day).length === 1;
+    if (age >= AGE.max || (age >= AGE.old && !last && rng() < 0.3)) { S.animals.splice(S.animals.indexOf(a), 1); ev(S, `${SP[a.sp].icon} Một con ${SP[a.sp].name.toLowerCase()} già đã mất.`); rescue(S, a.sp, day, rng); }
+  }
   // trứng: nở hoặc hỏng
   for (const e of [...S.eggs]) {
     const age = day - e.laid;
     if (e.fertile && age >= 1) {
       if (S.animals.filter((a) => a.sp === e.sp).length >= hatchLimit(S, e.sp)) { if (age >= 5) S.eggs.splice(S.eggs.indexOf(e), 1); continue; } // chuồng đầy: chờ chỗ trống
       S.eggs.splice(S.eggs.indexOf(e), 1);
-      if (rng() < (S.builds.oap ? 1 : 0.6)) {
+      if (rng() < (S.builds.oap || S.animals.filter((a) => a.sp === e.sp).length <= 2 ? 1 : 0.6)) { // đàn còn ≤2 con: mái tự ấp kỹ, trứng nở chắc
         const m = S.animals.filter((a) => a.sp === e.sp && a.sex === 'm').length, f = S.animals.filter((a) => a.sp === e.sp && a.sex === 'f').length;
         addAnimal(S, e.sp, m === 0 ? 'm' : f < 2 * m ? 'f' : rng() < 0.25 ? 'm' : 'f', e.genome, day); S.stats.hatched++; // giữ tỉ lệ trống/mái để đàn không tuyệt
         ev(S, `🐣 Một con ${SP[e.sp].name.toLowerCase()} con vừa nở!`);
@@ -106,17 +124,19 @@ const stepOnce = (S, n) => {
   });
   // bệnh và chọn lọc
   const wetK = (ph === 2 ? 1 : ph === 0 ? 0 : 0.5) + (rainy && sod >= 3 && sod <= 5 ? 0.5 : 0); // độ ẩm: mùa mưa nặng nhất, mùa khô không bệnh
+  const epi = eventsAt(S, n).filter((e) => e.type === 'dich');
   for (const a of [...S.animals]) {
     const r = avg(a.genome, 'resist');
     if (a.sickUntil) {
       if (n < a.sickUntil) continue;
       a.sickUntil = 0;
-      const lastFemale = lifeStage(a, day) !== 'young' && adultsOf(S, a.sp, a.sex, day).length === 1; // con trưởng thành cuối cùng của giới đó thì không chết vì bệnh
-      if (!lastFemale && rng() < 0.6 * (1 - r / 9)) { S.animals.splice(S.animals.indexOf(a), 1); ev(S, `🤒 Một con ${SP[a.sp].name.toLowerCase()} ốm không qua khỏi.`); }
+      const lastFemale = (lifeStage(a, day) !== 'young' && adultsOf(S, a.sp, a.sex, day).length === 1); // con trưởng thành cuối cùng của giới đó thì không chết vì bệnh
+      if (!lastFemale && rng() < 0.6 * (1 - r / 9)) { S.animals.splice(S.animals.indexOf(a), 1); ev(S, `🤒 Một con ${SP[a.sp].name.toLowerCase()} ốm không qua khỏi.`); rescue(S, a.sp, day, rng); }
       continue;
     }
     let p = wetK && !S.noDisease ? 0.05 * wetK * (1 - r / 9) * (S.builds.chuong ? 0.4 : 1) : 0;
     if (a.sp === 'duck' && ph === 3 && avg(a.genome, 'water') < 3) p += 0.01;
+    if (!S.noDisease) for (const e of epi) if (e.sp === a.sp) { const c = a.genome[e.locus].filter((v) => v === e.allele).length; if (c) p += BRAIN.epidemic * c * (1 - r / 9) * (S.builds.chuong ? 0.4 : 1); }
     if (p && rng() < p) a.sickUntil = n + DAY_STEPS;
   }
   w.step = n;

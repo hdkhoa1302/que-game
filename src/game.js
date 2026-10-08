@@ -1,6 +1,8 @@
 import { S, save, tick, add, stageOf, bedReady, trapLeft, trapState, nestCap, questDone, reset } from './state.js';
 import { FISH, CROPS, EGGS, GRAIN, BAIT, TRAP_TIMES, UP, COOP_CAP, ANIMAL, QUESTS, priceMul, MIN, PHASES, WEATHER, SP, RES, RES_CAP, BUILD, LU_CAP, TRAP_MOD } from './data.js';
-import { phaseAt, dayAt, lifeStage, ofSp, capOf, hatchLimit, addAnimal, dexAll, isFlooded, levelAt, stepF } from './sim.js';
+import { phaseAt, dayAt, lifeStage, ofSp, capOf, hatchLimit, addAnimal, dexAll, isFlooded, levelAt, stepF, eventsAt, worldPrice } from './sim.js';
+import { net, decide } from './net.js';
+import { describe } from './brain.js';
 import { founder, mulberry32, avg, colorOf, sizeGroup } from './genes.js';
 import { sfx, buzz, unlock } from './sfx.js';
 
@@ -40,6 +42,7 @@ const hud = () => {
   const chips = [], rb = S.beds.map((b, i) => (i < S.bedsN && bedReady(b) ? i : -1)).filter((i) => i >= 0);
   if (rb.length) chips.push(`<button data-go="bed:${rb[0]}">${CROPS.find((c) => c.id === S.beds[rb[0]].crop).icon} ${rb.length} chín</button>`);
   const eg = S.eggs.filter((e) => !e.fertile).length; if (eg >= 1) chips.push(`<button data-go="coop:0">🥚 ${eg}</button>`);
+  if (net.admin) chips.push(`<button data-a="brain">🧠 ${net.proposals.length ? net.proposals.length + ' đề xuất' : 'Ông Trời'}</button>`);
   const sick = S.animals.filter((a) => a.sickUntil).length; if (sick) chips.push(`<button data-a="herd">🤒 ${sick} ốm</button>`);
   const fl = S.beds.some((b, i) => b && isFlooded(S, i)); if (fl) chips.push('<button data-go="bed:3">🌊 Ngập vườn</button>');
   const tr = S.traps.map((t, i) => (trapState(t) === 'ready' ? i : -1)).filter((i) => i >= 0);
@@ -97,7 +100,7 @@ const trapPanel = (i) => () => {
 const cnt = (sp) => S.animals.filter((a) => a.sp === sp).length;
 const STAGE = { young: 'Con non', adult: 'Trưởng thành', old: 'Già' };
 const swatch = (a) => `<span style="display:inline-block;width:13px;height:13px;border-radius:50%;vertical-align:-1px;background:#${SP[a.sp].hex[colorOf(a.genome)].toString(16).padStart(6, '0')};border:2px solid #0002"></span>`;
-const price = (a) => Math.round(ANIMAL[a.sp] * 0.6 * (1 + avg(a.genome, 'size') / 18) * (lifeStage(a, dayAt(S.world.step)) === 'young' ? 0.5 : 1));
+const price = (a) => Math.round(worldPrice(S) * ANIMAL[a.sp] * 0.6 * (1 + avg(a.genome, 'size') / 18) * (lifeStage(a, dayAt(S.world.step)) === 'young' ? 0.5 : 1));
 const coopPanel = () => {
   const fed = S.fedUntil - Date.now(), c = COOP_CAP[S.coop - 1];
   const eg = (f) => S.eggs.filter((e) => e.fertile === f).length;
@@ -158,6 +161,16 @@ const bedPanel = (i) => () => {
   <p style="text-align:center"><button class="btn gray" data-a="pull" data-v="${i}">Nhổ bỏ</button></p>`;
 };
 
+// ---------- Ông Trời (chỉ trưởng làng) ----------
+const brainPanel = () => {
+  const now = Date.now(), act = eventsAt(S, S.world.step);
+  const rows = net.proposals.map((p) => `<div class="row"><div class="ic">${p.type === 'dich' ? '🦠' : p.mul < 1 ? '📉' : '📈'}</div><div class="tx">${describe(p)}<small>Lý do: ${p.reason}<br>Hết hạn sau ${fmt(Math.max(0, p.expires - now))}</small></div>
+    <button class="btn gold" data-a="decide" data-v="${p.id}:1">Duyệt</button><button class="btn gray" data-a="decide" data-v="${p.id}:0">Bỏ</button></div>`).join('');
+  return `<h2>🧠 Ông Trời</h2><p>Luật cố định đọc số liệu cả làng (cần ≥3 nông trại báo cáo) và đề xuất; chỉ chạy khi bạn duyệt. Sự kiện áp dụng cả làng trong một mùa.</p>` +
+    (rows || '<p>Chưa có đề xuất. Làng đang cân bằng, hoặc chưa đủ số liệu.</p>') +
+    (act.length ? `<h3>Đang diễn ra</h3>` + act.map((e) => `<p>${describe(e)}</p>`).join('') : '');
+};
+
 // ---------- Chợ ----------
 const trend = (id) => { const m = priceMul(id); return m > 1.05 ? '▲' : m < 0.95 ? '▼' : ''; };
 const bag = (b) => (b === 'res' ? S.res : S.inv[b]);
@@ -165,10 +178,10 @@ const sellable = () => [
   ...FISH.map((f) => ({ b: 'fish', ...f })), ...CROPS.map((c) => ({ b: 'crop', ...c })), ...EGGS.map((e) => ({ b: 'egg', ...e })),
   ...Object.entries(RES).filter(([, r]) => r.price > 0).map(([id, r]) => ({ b: 'res', id, ...r })),
 ].filter((x) => bag(x.b)[x.id] > 0);
-const unit = (x) => Math.round(x.price * priceMul(x.id));
+const unit = (x) => Math.round(x.price * priceMul(x.id) * worldPrice(S));
 const market = () => {
   const items = sellable(), total = items.reduce((a, x) => a + unit(x) * bag(x.b)[x.id], 0);
-  return `<h2>🧺 Chợ quê</h2><p>Giá đổi theo ngày. ▲ cao hơn thường, ▼ thấp hơn.</p>` +
+  return `<h2>🧺 Chợ quê</h2><p>Giá đổi theo ngày. ▲ cao hơn thường, ▼ thấp hơn.</p>` + eventsAt(S, S.world.step).filter((e) => e.type === 'gia').map((e) => `<p><b>${describe(e)}</b></p>`).join('') +
     (items.length ? items.map((x) => `<div class="row"><div class="ic">${x.icon}</div><div class="tx">${x.name} ×${bag(x.b)[x.id]}<small>${coin(unit(x))}/con ${trend(x.id)}</small></div><button class="btn" data-a="sell" data-v="${x.b}:${x.id}">Bán hết</button></div>`).join('') +
       `<button class="btn big gold" data-a="sellall">Bán tất cả · ${coin(total)}</button>` : '<p>Chưa có gì để bán. Đi câu cá, thu rau, nhặt trứng nhé!</p>') +
     `<div class="row" style="margin-top:8px"><div class="ic">🌾</div><div class="tx">Mua thóc (có ${S.inv.grain})<small>${coin(GRAIN.cost)}/phần</small></div><button class="btn" data-a="grain" data-v="1" ${S.coins < GRAIN.cost ? 'disabled' : ''}>+1</button><button class="btn" data-a="grain" data-v="5" ${S.coins < GRAIN.cost * 5 ? 'disabled' : ''}>+5</button></div>`;
@@ -248,7 +261,7 @@ const hook = () => {
 };
 const caught = (fish) => {
   add('fish', fish.id); S.stats.fish++; sfx.ok(); buzz([30, 40, 30]);
-  fishCard(`<div style="font-size:56px">${fish.icon}</div><h3>Được ${fish.name}!</h3><p>Bán được khoảng ${coin(Math.round(fish.price * priceMul(fish.id)))}</p><button class="btn big" data-a="cast">Quăng tiếp</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`);
+  fishCard(`<div style="font-size:56px">${fish.icon}</div><h3>Được ${fish.name}!</h3><p>Bán được khoảng ${coin(Math.round(fish.price * priceMul(fish.id) * worldPrice(S)))}</p><button class="btn big" data-a="cast">Quăng tiếp</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`);
   world.bobber(false); after();
 };
 
@@ -289,6 +302,8 @@ const ACT = {
     const rng = mulberry32((Date.now() ^ (S.nextId * 2654435761)) >>> 0), m = S.animals.filter((a) => a.sp === v && a.sex === 'm').length, f = cnt(v) - m;
     addAnimal(S, v, m * 2 <= f ? 'm' : 'f', founder(rng), dayAt(S.world.step) - 3 - Math.floor(rng() * 4), true); sfx.cluck(); sfx.coin();
   },
+  brain() { open(brainPanel); },
+  decide(v) { const [id, ok] = v.split(':'); decide(id, ok === '1'); net.proposals = net.proposals.filter((p) => p.id !== id); toast(ok === '1' ? 'Đã duyệt — cả làng sẽ thấy từ bước kế' : 'Đã bỏ đề xuất'); draw(); },
   view(v) { open(animalCard(+v)); },
   herd() { open(herdPanel); },
   dex() { open(dexPanel); },
@@ -364,11 +379,12 @@ export const collect = (kind, id) => {
 
 export const init = (w) => {
   world = w;
+  net.onBrain = () => { hud(); draw(); };
   document.addEventListener('click', (e) => {
     const o = e.target.closest('[data-open]');
     if (o) { unlock(); sfx.tap(); if (F.on && o.dataset.open !== 'fish') return; if (o.dataset.open === 'fish') return F.on ? undefined : interact('pond', 0); if (o.dataset.open === 'trap') return startPlace(); return open({ market, house }[o.dataset.open]); }
     const a = e.target.closest('[data-a]');
-    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace', 'view', 'herd', 'dex', 'coopback', 'openbuild'].includes(a.dataset.a)) after(); return; }
+    if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace', 'view', 'herd', 'dex', 'coopback', 'openbuild', 'brain', 'decide'].includes(a.dataset.a)) after(); return; }
     if (e.target.id === 'back') close();
     const go = e.target.closest('[data-go]');
     if (go) { unlock(); sfx.tap(); const [k, i] = go.dataset.go.split(':'); return world.approach(k, +i); }
