@@ -192,7 +192,7 @@ const house = () => {
     `<div class="row"><div class="ic">🔨</div><div class="tx">Xây dựng<small>Bàn thợ, chuồng tre lá, ổ ấp, lu nước, ủ phân, cầu khỉ, nền cao</small></div><button class="btn gold" data-a="openbuild">Mở</button></div>` +
     `<div class="row"><div class="ic">🪓</div><div class="tx">Công cụ<small>${Object.entries(TOOLS).map(([k, t]) => `${t.icon}${S.tools[k] || 0}`).join(' ')} (bậc 0–3, chế ở bàn thợ)</small></div><button class="btn" data-a="opencraft">Mở</button></div>` +
     `<div class="row"><div class="ic">📖</div><div class="tx">Sổ giống<small>${Object.keys(S.dex).length}/${dexAll().length} kiểu gà vịt</small></div><button class="btn" data-a="dex">Mở</button></div>` +
-    `<p style="margin-top:12px"><button class="btn gray" data-a="music">${S.sound ? '🔊 Tắt' : '🔇 Bật'} âm thanh</button> <button class="btn red" data-a="reset">Chơi lại từ đầu</button></p>`;
+    `<p style="margin-top:12px"><button class="btn gray" data-a="music">${S.sound ? '🔊 Tắt' : '🔇 Bật'} âm thanh</button> <button class="btn red" data-a="reset">Chơi lại từ đầu</button></p><p style="opacity:.5;font-size:12px">Bản dựng: ${typeof __BUILD__ === 'undefined' ? 'dev' : __BUILD__}</p>`;
 };
 
 // ---------- Xây dựng ----------
