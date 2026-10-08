@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#6bb86a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Về quê</title>
+<style>
+:root{--ink:#3b2a1a;--paper:#fff8e6;--line:#e6d5a8;--green:#4e9d45;--gold:#f3b53f;--red:#d8523f;--sky:#9fd8f0}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);overscroll-behavior:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.pill{background:var(--paper);border:2px solid var(--line);border-radius:999px;box-shadow:0 2px 0 #c9b479}
+#hud{position:fixed;top:max(10px,env(safe-area-inset-top));left:12px;right:12px;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+#coins{align-self:flex-start;padding:6px 14px;font-weight:800;font-size:18px}
+#quest{padding:8px 14px;font-size:14px;font-weight:600;line-height:1.3;border-radius:16px;max-width:420px}
+#quest small{display:block;font-weight:500;opacity:.7}
+#bar{position:fixed;left:0;right:0;bottom:max(10px,env(safe-area-inset-bottom));display:flex;justify-content:center;gap:10px;pointer-events:none}
+#bar button{pointer-events:auto;width:64px;height:64px;border-radius:20px;font-size:28px;background:var(--paper);border:2px solid var(--line);box-shadow:0 3px 0 #c9b479;line-height:1;padding:0}
+#bar button span{display:block;font-size:11px;font-weight:700;margin-top:2px;color:var(--ink)}
+#bar button:active{transform:translateY(2px);box-shadow:0 1px 0 #c9b479}
+#back{position:fixed;inset:0;background:rgba(30,20,10,.35);z-index:5}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:6;max-height:78vh;overflow:auto;background:var(--paper);border-radius:24px 24px 0 0;border-top:3px solid var(--line);padding:16px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -6px 24px rgba(0,0,0,.25);animation:up .18s ease-out;max-width:560px;margin:0 auto}
+@keyframes up{from{transform:translateY(40px);opacity:0}}
+#sheet h2{margin:0 0 4px;font-size:20px}
+#sheet p{margin:4px 0 10px;font-size:14px;opacity:.8}
+.x{position:absolute;right:12px;top:10px;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:#fff;font-size:18px;padding:0}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--line)}
+.row:last-child{border:0}
+.row .ic{font-size:28px;width:36px;text-align:center}
+.row .tx{flex:1;min-width:0;font-weight:700;font-size:15px}
+.row .tx small{display:block;font-weight:500;opacity:.7;font-size:12px}
+.btn{border:0;border-radius:14px;background:var(--green);color:#fff;font-weight:800;font-size:15px;padding:11px 14px;box-shadow:0 3px 0 #2f7a2f;min-height:44px}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 #2f7a2f}
+.btn.gold{background:var(--gold);color:var(--ink);box-shadow:0 3px 0 #b88418}
+.btn.red{background:var(--red);box-shadow:0 3px 0 #9a3322}
+.btn.gray,.btn[disabled]{background:#c8bfa6;box-shadow:0 3px 0 #a79e86;color:#fff}
+.btn.big{width:100%;font-size:18px;padding:14px}
+.bar{height:12px;border-radius:8px;background:#eadcb4;overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--green);border-radius:8px}
+#toast{position:fixed;left:50%;top:max(80px,calc(env(safe-area-inset-top) + 80px));transform:translateX(-50%);z-index:9;background:#3b2a1a;color:#fff;padding:10px 16px;border-radius:14px;font-weight:700;font-size:14px;max-width:88vw;text-align:center;pointer-events:none;animation:pop .25s}
+@keyframes pop{from{transform:translate(-50%,-10px) scale(.9);opacity:0}}
+#fish{position:fixed;inset:0;z-index:4;pointer-events:none}
+#fish .card{position:absolute;left:50%;bottom:100px;transform:translateX(-50%);width:min(92vw,360px);background:var(--paper);border:3px solid var(--line);border-radius:20px;padding:14px;text-align:center;pointer-events:auto;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+#fish h3{margin:0 0 6px;font-size:18px}
+#reel{display:flex;gap:14px;justify-content:center;align-items:stretch;margin-top:10px}
+#track{position:relative;width:46px;height:150px;background:#7cc6e6;border:3px solid #2a7da3;border-radius:12px;overflow:hidden}
+#catcher{position:absolute;left:0;right:0;background:rgba(80,200,90,.7);border-top:2px solid #2f7a2f;border-bottom:2px solid #2f7a2f}
+#fishy{position:absolute;left:8px;width:30px;font-size:22px;text-align:center;line-height:1}
+#prog{width:16px;height:150px;background:#eadcb4;border:2px solid var(--line);border-radius:10px;position:relative;overflow:hidden}
+#prog i{position:absolute;left:0;right:0;bottom:0;background:var(--gold)}
+#hold{flex:1;min-height:150px;border:0;border-radius:16px;background:var(--green);color:#fff;font-weight:800;font-size:18px;box-shadow:0 4px 0 #2f7a2f;touch-action:none}
+#hold:active,#hold.on{background:#3f8a3a;transform:translateY(2px)}
+#load{position:fixed;inset:0;z-index:20;background:linear-gradient(#bfe6f5,#cfeab0);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:22px;gap:10px;transition:opacity .4s}
+#load div{font-size:56px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><div id="coins" class="pill">🪙 0</div><div id="quest" class="pill"></div></div>
+<div id="fish" hidden></div>
+<div id="bar">
+  <button data-open="fish">🎣<span>Câu</span></button>
+  <button data-open="market">🧺<span>Chợ</span></button>
+  <button data-open="house">🏠<span>Nhà</span></button>
+  <button id="snd">🔊<span>Âm</span></button>
+</div>
+<div id="back" hidden></div>
+<div id="sheet" hidden><button class="x" data-a="close">✕</button><div id="sheetBody"></div></div>
+<div id="load"><div>🏡</div>Về quê…</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
