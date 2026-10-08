@@ -40,9 +40,9 @@ export const UP = {
   house: [0, 250, 700],
 };
 export const COOP_CAP = [
-  { chicken: 5, duck: 3 },
-  { chicken: 8, duck: 5 },
-  { chicken: 12, duck: 8 },
+  { chicken: 6, duck: 5 },
+  { chicken: 9, duck: 7 },
+  { chicken: 13, duck: 10 },
 ];
 export const ANIMAL = { chicken: 20, duck: 25 };
 

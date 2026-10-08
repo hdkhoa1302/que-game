@@ -6,6 +6,8 @@ import { cross, founder, mulberry32, avg, MUT } from './src/genes.js';
 import { STEP_MS, DAY_STEPS, MAX_CATCHUP, PHASE_STEPS, AGE } from './src/data.js';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
+// bản lưu cố định để test xác định (không phụ thuộc seed ngẫu nhiên của lần chạy)
+S.world.seed = 12345; { const r = mulberry32(99), d0 = dayAt(S.world.step); S.animals.forEach((a, i) => { a.genome = founder(r); a.born = d0 - 3 - ((i * 3) % 8); }); }
 const run = (base, steps) => { const s = clone(base); s.fedUntil = Infinity; for (let i = 0; i < steps; i += 8) { const k = Math.min(8, steps - i); advance(s, s.t0 + (s.world.step - s.world.base + k) * STEP_MS + 1); } return s; };
 
 // 1. cùng seed → cùng thời tiết
@@ -59,3 +61,25 @@ const mean = (s) => s.animals.reduce((t, x) => t + avg(x.genome, 'resist'), 0) /
 const after = run(rain, 30 * DAY_STEPS);
 assert.ok(after.animals.length > 0);
 console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.animals.length, '| trứng:', long.eggs.length, '| đề kháng TB', mean(S).toFixed(2), '→', mean(after).toFixed(2));
+
+// 8b. chọn lọc: 6 năm game, đàn có áp lực bệnh mùa mưa có đề kháng TB cao hơn đàn đối chứng (tắt bệnh)
+{
+  const res = (noD) => { let tot = 0, n = 0; for (let k = 0; k < 60; k++) { const s = clone(S); s.world.seed = (k * 7919 + 13) | 0; const r = mulberry32(k + 1); s.animals.forEach((a) => { a.genome = founder(r); }); s.fedUntil = Infinity; s.noDisease = noD;
+    for (let i = 0; i < 6 * 96; i++) advance(s, s.t0 + (s.world.step - s.world.base + 1) * STEP_MS + 1);
+    if (s.animals.length) { tot += mean(s); n++; } } return tot / n; };
+  const withP = res(false), ctrl = res(true);
+  assert.ok(withP > ctrl + 0.1, `chọn lọc yếu: có áp lực ${withP.toFixed(2)} vs đối chứng ${ctrl.toFixed(2)}`);
+  console.log(`chọn lọc: đề kháng TB có áp lực ${withP.toFixed(2)} > đối chứng ${ctrl.toFixed(2)}`);
+}
+
+// 9. ổn định đàn: 30 seed × 12 năm game, nuôi đủ ăn, không can thiệp → tuyệt chủng mỗi loài ≤ 10%
+{
+  let ext = { chicken: 0, duck: 0 };
+  for (let k = 0; k < 30; k++) {
+    const s = clone(S); s.world.seed = (k * 7919 + 13) | 0; const r = mulberry32(k + 1); s.animals.forEach((a, i) => { a.genome = founder(r); a.born = dayAt(s.world.step) - 3 - ((i * 3) % 8); }); s.fedUntil = Infinity;
+    for (let i = 0; i < 12 * 96; i++) advance(s, s.t0 + (s.world.step - s.world.base + 1) * STEP_MS + 1);
+    for (const sp of Object.keys(ext)) if (!s.animals.some((a) => a.sp === sp)) ext[sp]++;
+  }
+  assert.ok(ext.chicken <= 3 && ext.duck <= 3, `tuyệt chủng quá nhiều: ${JSON.stringify(ext)}`);
+  console.log('ổn định đàn (30 seed × 12 năm):', JSON.stringify(ext));
+}

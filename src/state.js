@@ -37,7 +37,7 @@ export const S = (() => {
       return s;
     }
   } catch {}
-  const s = fresh(); seedHerd(s, 3, 2); return s;
+  const s = fresh(); seedHerd(s, 4, 3); return s;
 })();
 
 export const save = () => {

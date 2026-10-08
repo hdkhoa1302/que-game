@@ -60,7 +60,7 @@ const dayStart = (S, n, t, day, rng) => {
       S.eggs.splice(S.eggs.indexOf(e), 1);
       if (rng() < (S.builds.oap ? 1 : 0.6)) {
         const m = S.animals.filter((a) => a.sp === e.sp && a.sex === 'm').length, f = S.animals.filter((a) => a.sp === e.sp && a.sex === 'f').length;
-        addAnimal(S, e.sp, m === 0 ? 'm' : f === 0 ? 'f' : rng() < (m * 2 < f ? 0.75 : 0.35) ? 'm' : 'f', e.genome, day); S.stats.hatched++; // giữ tỉ lệ trống/mái để đàn không tuyệt
+        addAnimal(S, e.sp, m === 0 ? 'm' : f < 2 * m ? 'f' : rng() < 0.25 ? 'm' : 'f', e.genome, day); S.stats.hatched++; // giữ tỉ lệ trống/mái để đàn không tuyệt
         ev(S, `🐣 Một con ${SP[e.sp].name.toLowerCase()} con vừa nở!`);
       }
     } else if (!e.fertile && age >= 3) S.eggs.splice(S.eggs.indexOf(e), 1);
@@ -77,8 +77,9 @@ const dayStart = (S, n, t, day, rng) => {
       if (ph === 0 && avg(a.genome, 'size') >= 6 && !S.builds.lu) p *= 0.8;
       if (lifeStage(a, day) === 'old') p *= 0.5;
       if (rng() >= p) continue;
-      const father = males.length ? males[Math.floor(rng() * males.length)] : null;
-      S.eggs.push({ id: S.nextId++, sp, laid: day, fertile: !!father, genome: father ? cross(a.genome, father.genome, rng) : a.genome });
+      // không có trống trong chuồng: 50% có trống nhà hàng xóm sang "giúp" (gen mới từ ngoài vào, tránh tuyệt chủng)
+      const fg = males.length ? males[Math.floor(rng() * males.length)].genome : rng() < 0.5 ? founder(rng) : null;
+      S.eggs.push({ id: S.nextId++, sp, laid: day, fertile: !!fg, genome: fg ? cross(a.genome, fg, rng) : a.genome });
     }
   }
   // phân + ủ phân
@@ -104,17 +105,17 @@ const stepOnce = (S, n) => {
     if (i >= 3 && !S.builds.nen?.[i] && lv > FLOOD_LEVEL) { b.flood = (b.flood || 0) + 1; if (b.flood >= 3) { S.beds[i] = null; ev(S, '🌊 Nước dâng làm hỏng một luống rau. Đắp nền cao để chống ngập.'); } } else if (b.flood) b.flood = 0;
   });
   // bệnh và chọn lọc
-  const wet = ph === 2 || (rainy && sod >= 3 && sod <= 5);
+  const wetK = (ph === 2 ? 1 : ph === 0 ? 0 : 0.5) + (rainy && sod >= 3 && sod <= 5 ? 0.5 : 0); // độ ẩm: mùa mưa nặng nhất, mùa khô không bệnh
   for (const a of [...S.animals]) {
     const r = avg(a.genome, 'resist');
     if (a.sickUntil) {
       if (n < a.sickUntil) continue;
       a.sickUntil = 0;
-      const lastFemale = a.sex === 'f' && lifeStage(a, day) !== 'young' && adultsOf(S, a.sp, 'f', day).length === 1;
-      if (!lastFemale && rng() < 0.4 * (1 - r / 9)) { S.animals.splice(S.animals.indexOf(a), 1); ev(S, `🤒 Một con ${SP[a.sp].name.toLowerCase()} ốm không qua khỏi.`); }
+      const lastFemale = lifeStage(a, day) !== 'young' && adultsOf(S, a.sp, a.sex, day).length === 1; // con trưởng thành cuối cùng của giới đó thì không chết vì bệnh
+      if (!lastFemale && rng() < 0.6 * (1 - r / 9)) { S.animals.splice(S.animals.indexOf(a), 1); ev(S, `🤒 Một con ${SP[a.sp].name.toLowerCase()} ốm không qua khỏi.`); }
       continue;
     }
-    let p = wet ? 0.01 * (1 - r / 9) * (S.builds.chuong ? 0.4 : 1) : 0;
+    let p = wetK && !S.noDisease ? 0.05 * wetK * (1 - r / 9) * (S.builds.chuong ? 0.4 : 1) : 0;
     if (a.sp === 'duck' && ph === 3 && avg(a.genome, 'water') < 3) p += 0.01;
     if (p && rng() < p) a.sickUntil = n + DAY_STEPS;
   }
