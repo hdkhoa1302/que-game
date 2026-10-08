@@ -13,7 +13,7 @@ const fresh = () => ({
   traps: [], // {x, z, start, ms}; start=0: lờ đang rảnh
   beds: [null, null, null, null, null, null], // {crop, progress, last, waterUntil, fert, flood}
   animals: [], eggs: [], dex: {}, nextId: 1, ev: [],
-  res: { ...START_RES }, builds: { nen: {} }, lu: 0, obj: {}, tools: { rua: 1 }, qv: 2,
+  res: { ...START_RES }, builds: { nen: {} }, lu: 0, obj: {}, objv: 3, tools: { rua: 1 }, qv: 2,
   fedUntil: 0, last: Date.now(), t0: Date.now(),
   world: { step: START_STEP, base: START_STEP, seed: (Math.random() * 2 ** 31) | 0, weather: 'nang' },
   quest: 0, won: false, sound: true,
@@ -34,7 +34,7 @@ export const S = (() => {
       raw.traps = (raw.traps || []).filter(Boolean).map((t, i) => (t.x == null ? { x: DEF[i][0], z: DEF[i][1], ...t } : t));
       raw.traps = raw.traps.map((t) => { if (shallowAt(t.x, t.z)) return t; const [x, z] = snapToShallow(t.x, t.z); return { ...t, x, z }; }); // lờ cũ đặt trong ao: kéo về nước nông ven sông
       const s = { ...fresh(), ...raw };
-      s.stats = { ...fresh().stats, ...raw.stats }; s.tools = { rua: 1, ...(raw.tools || {}) }; s.obj = raw.obj || {};
+      s.stats = { ...fresh().stats, ...raw.stats }; s.tools = { rua: 1, ...(raw.tools || {}) }; s.obj = raw.objv === 3 ? raw.obj || {} : {}; s.objv = 3; // bố cục vật thể đổi: bỏ trạng thái mọc lại cũ
       if (!raw.qv) { s.quest = (raw.quest || 0) + 3; s.qv = 2; } // 3 nhiệm vụ công cụ mới ở đầu danh sách: bản lưu cũ bỏ qua
       if (!raw.animals) { s.animals = []; s.eggs = []; seedHerd(s, raw.chickens ?? 2, raw.ducks ?? 1); delete s.chickens; delete s.ducks; delete s.nest; }
       if (!raw.world) { s.t0 = raw.t0 || Date.now(); s.world = fresh().world; s.world.step = s.world.base = START_STEP; s.t0 = Date.now(); }

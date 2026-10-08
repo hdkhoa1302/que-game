@@ -1,6 +1,6 @@
 // Địa lý và vật thể khai thác: sông, hồ, sinh vật thể xác định, kiểm tra còn dùng được. Thuần, không đụng DOM.
 import { mulberry32 } from './genes.js';
-import { OBJ, ZONES, WATER_MIX, WALK_R, DECOR, PADDY, RIVER } from './data.js';
+import { OBJ, ZONES, WATER_MIX, WALK_R, PADDY, PLOTS, RIVER } from './data.js';
 
 export const LAKE = { x: -23, z: 3, rx: 5.5, rz: 3 };
 export const inEll = (e, x, z, k = 1) => ((x - e.x) / (e.rx * k)) ** 2 + ((z - e.z) / (e.rz * k)) ** 2 < 1;
@@ -45,14 +45,8 @@ export const snapToShallow = (x, z, k = 1) => {
   return [r.cx + ux * r.half * 0.78, r.cz + uz * r.half * 0.78];
 };
 
-// đồ trang trí đã đổi toạ độ theo sông (riv) sang x, z, rot
-export const DECOR_R = DECOR.map((d) => {
-  if (!d.riv) return d;
-  const p = riverPoint(d.riv[0], 1); return { ...d, x: p.x + p.nx * d.riv[1] * p.half, z: p.z + p.nz * d.riv[1] * p.half, rot: p.ang - Math.PI / 2 };
-});
-
 // khu nhà, vườn, chuồng, chợ, bến: không rải vật thể; bờ sông thì chỉ vật ven nước được ở đó
-export const keepOut = (x, z, wet = false) => DECOR_R.some((d) => Math.hypot(d.x - x, d.z - z) < d.r) || (x > PADDY.x0 - 1 && x < PADDY.x1 + 1 && z > PADDY.z0 - 1 && z < PADDY.z1 + 1) || inEll(LAKE, x, z, 1.25) || (x > -9 && x < 3 && z > -4.6 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.8) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 8 && z > 3.6 && z < 8.2) || (x > 1 && x < 7.5 && z > -2.4 && z < 0.8) || (() => { const r = riverAt(x, z, 1.2); return wet ? r.d < r.half * 1.12 : r.d < r.half * 1.2 + 0.7; })();
+export const keepOut = (x, z, wet = false) => (x > PADDY.x0 - 1 && x < PADDY.x1 + 1 && z > PADDY.z0 - 1 && z < PADDY.z1 + 1) || inEll(LAKE, x, z, 1.25) || (x > -9 && x < 3 && z > -4.6 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.8) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 8 && z > 3.6 && z < 8.2) || (x > 1 && x < 7.5 && z > -2.4 && z < 0.8) || (() => { const r = riverAt(x, z, 1.2); return wet ? r.d < r.half * 1.12 : r.d < r.half * 1.2 + 0.7; })();
 
 export const genObjects = () => {
   const rng = mulberry32(20241008), list = [];
@@ -70,6 +64,8 @@ export const genObjects = () => {
   for (const [kind, n] of WATER_MIX.lake) { // quanh rạch
     for (let k = 0, got = 0; got < n && k < n * 60; k++) { const a = rng() * 6.283, f = 1.34 + rng() * 0.3; if (add(kind, LAKE.x + Math.cos(a) * LAKE.rx * f, LAKE.z + Math.sin(a) * LAKE.rz * f, 0.8, true)) got++; }
   }
+  // bốn thửa ruộng: vật thể khai thác đặc biệt, mỗi thửa một mục (tâm thửa + hình chữ nhật)
+  PLOTS.forEach((pl) => list.push({ id: list.length, kind: 'thua', x: (pl.x0 + pl.x1) / 2, z: (pl.z0 + pl.z1) / 2, rot: 0, s: 1, plot: pl }));
   return list;
 };
 

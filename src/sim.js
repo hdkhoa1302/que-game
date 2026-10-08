@@ -30,7 +30,6 @@ export const growBed = (b, now) => {
 
 // ---- gà vịt ----
 export const lifeStage = (a, day) => { const age = day - a.born; return age < AGE.adult ? 'young' : age >= AGE.old ? 'old' : 'adult'; };
-export const ofSp = (S, sp) => S.animals.filter((a) => a.sp === sp);
 export const adultsOf = (S, sp, sex, day = dayAt(S.world.step)) => S.animals.filter((a) => a.sp === sp && (!sex || a.sex === sex) && lifeStage(a, day) !== 'young');
 export const capOf = (S, sp) => COOP_CAP[S.coop - 1][sp];
 export const hatchLimit = (S, sp) => Math.ceil(capOf(S, sp) * 1.5); // đàn được vượt sức chứa tới 150% nhờ con non, để thế hệ sau kịp lớn trước khi đàn cũ già

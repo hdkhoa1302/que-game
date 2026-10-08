@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { S, tick, stageOf, bedReady, trapState, save, offlineSummary } from './state.js';
-import { CROPS, PHASES, WEATHER, SP, OBJ, TOOLS, WORLD_R, WALK_R, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
-import { PADDY, RIVER_FLOAT, riverK } from './data.js';
-import { genObjects, objAvail, zoneAt, keepOut, LAKE, inEll, RS, riverAt, riverPoint, shallowAt, DECOR_R } from './objs.js';
+import { CROPS, PHASES, WEATHER, SP, OBJ, TOOLS, WALK_R, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
+import { PADDY, PLOTS, riverK } from './data.js';
+import { genObjects, objAvail, zoneAt, keepOut, LAKE, inEll, RS, riverAt, riverPoint, shallowAt } from './objs.js';
 import { phaseAt, levelAt, stepF, isFlooded, lifeStage, dayAt } from './sim.js';
 import { colorOf, avg } from './genes.js';
 import * as M from './models.js';
@@ -44,7 +44,6 @@ let kR = riverK(0.45); // hệ số bề rộng sông theo mực nước (cập 
   const b = new M.B();
   b.cyl(0x6fb65a, [0, -0.25, 0], 58, 58.4, 0.5, 40);
   for (let i = 0; i < 60; i++) { const x = (rnd() - 0.5) * 100, z = (rnd() - 0.5) * 100; if (!keepOut(x, z)) b.ball(i % 2 ? 0x7cc467 : 0x5fa84d, [x, 0, z], [1 + rnd() * 2, 0.12, 1 + rnd() * 2], 6); }
-  for (let i = 0; i < 150; i++) { const x = (rnd() - 0.5) * 66, z = (rnd() - 0.5) * 66; if (!keepOut(x, z) && Math.hypot(x, z) < WORLD_R) M.flower(b, x, z, [0xf26b8a, 0xffd23f, 0xb487f0, 0xffffff][Math.floor(rnd() * 4)]); }
   for (let i = 0; i < 26; i++) { const an = (i / 26) * 6.283 + rnd() * 0.2, r = 38 + rnd() * 14, h = 4 + rnd() * 7; b.ball([0x5f9a5a, 0x6aa86a, 0x4f8a5a, 0x7a9a8a][i % 4], [Math.cos(an) * r, 0, Math.sin(an) * r], [h * 1.6, h * 0.55, h * 1.6], 7); } // đồi ở chân trời, không đi tới được
   // đường đất: nhà → vườn → chợ
   [[-4, -2.6], [-3.4, -1.2], [-2.6, 0.4], [-1, 1], [0.6, 2.4], [1.8, 4.2], [3.2, 5.4], [3.6, 3.2], [3.0, 1.4], [2.4, -0.4]].forEach(([x, z]) => b.cyl(0xd2b27a, [x, 0.01, z], 0.6, 0.6, 0.03, 8));
@@ -112,7 +111,7 @@ const syncObjs = () => {
   for (const kind in OI) {
     const g = OI[kind], d = OBJ[kind]; let dirty = false;
     for (const o of g.list) {
-      const season = !d.phases || d.phases.includes(ph), ok = season && objAvail(S, o, day, ph), st = !season ? 'off' : ok ? 'full' : g.spent ? 'spent' : 'off';
+      const season = !d.phases || d.phases.includes(ph), ok = season && objAvail(S, o, day, ph), st = !season ? 'off' : ok ? 'full' : g.spent ? 'spent' : 'off'; // thửa ruộng không có hình riêng: do plotMeshes vẽ
       if (st === o.st) continue; o.st = st; dirty = true; o.ok = ok;
       putInst(g.full, o.i, o, st === 'full'); if (g.spent) putInst(g.spent, o.i, o, st === 'spent');
     }
@@ -125,27 +124,19 @@ const pickObj = (cx, cy) => { // chạm gần nhất trong 38px (màn hình) tro
   for (const o of OBJS) { if (o.st !== 'full') continue; v.set(o.x, 0.5, o.z).project(camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * innerWidth - cx, (1 - v.y) / 2 * innerHeight - cy); if (d < bd) { bd = d; best = o; } }
   return best;
 };
-// ---- trang trí dựng bằng Blender ----
-const decorAnim = [];
-for (const d of DECOR_R) { const m = M.fromBlender(d.a); if (!m) continue; m.position.set(d.x, d.y, d.z); m.rotation.y = d.rot; scene.add(m); if (d.anim || d.riv || d.a === 'ghe_cho') decorAnim.push(m); }
-const lucBinh = (parent, e, list) => list.forEach(([fx, fz, sc], i) => { const m = M.fromBlender('luc_binh'); if (!m) return; m.position.set(e.rx * fx, 0.11, e.rz * fz); m.scale.setScalar(sc); m.rotation.y = i * 1.7; parent.add(m); lakeFloat.push({ m, ph: i * 1.3 + fx }); });
-const lakeFloat = [];
-lucBinh(lake, LAKE, [[-0.4, 0.2, 1.3], [0.3, -0.45, 1.1], [0.55, 0.3, 1.4], [-0.1, 0.55, 1.0], [-0.65, -0.35, 1.2], [0.1, 0.05, 1.0]]);
-// vật trôi theo dòng sông (lục bình, xuồng)
-const drift = RIVER_FLOAT.map((f) => { const m = M.fromBlender(f.a); if (m) { m.scale.setScalar(f.sc); scene.add(m); } return { ...f, m, ph: f.s * 40 }; }).filter((f) => f.m);
-const paddies = [];
-{ // ruộng lúa: nước + bờ + khóm lúa (xanh hoặc chín theo mùa)
+// ---- ruộng lúa bờ đông: nước, bờ ruộng, 4 thửa (xanh quanh năm, chín vào mùa khô, gặt xong chỉ còn gốc) ----
+const plotMeshes = []; // {id, xanh, chin}
+{
   const w = PADDY.x1 - PADDY.x0, h = PADDY.z1 - PADDY.z0, cx = (PADDY.x0 + PADDY.x1) / 2, cz = (PADDY.z0 + PADDY.z1) / 2;
   const mirror = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), new THREE.MeshLambertMaterial({ color: 0x7fb4c4, transparent: true, opacity: 0.8, flatShading: true })); mirror.position.set(cx, 0.03, cz); scene.add(mirror);
-  const bund = new M.B(); for (let i = 0; i <= 3; i++) bund.box(0x8a6a3a, [cx, 0.08, PADDY.z0 + (h * i) / 3], [w + 0.4, 0.16, 0.3]); [PADDY.x0, PADDY.x1].forEach((x) => bund.box(0x8a6a3a, [x, 0.08, cz], [0.3, 0.16, h]));
+  const bund = new M.B(); for (let i = 0; i <= 2; i++) bund.box(0x8a6a3a, [cx, 0.08, PADDY.z0 + (h * i) / 2], [w + 0.4, 0.16, 0.3]); for (let i = 0; i <= 2; i++) bund.box(0x8a6a3a, [PADDY.x0 + (w * i) / 2, 0.08, cz], [0.3, 0.16, h]);
   scene.add(bund.mesh());
-  for (const kind of ['lua_xanh', 'lua_chin']) {
-    const g = M.fromBlender(kind); if (!g) continue;
-    const pts = []; for (let x = PADDY.x0 + 0.6; x < PADDY.x1 - 0.3; x += 0.75) for (let z = PADDY.z0 + 0.6; z < PADDY.z1 - 0.3; z += 0.75) { const k = Math.floor(((x - PADDY.x0) / 0.75)) % 1 === 0 ? 1 : 0; if (Math.abs(((z - PADDY.z0) % (h / 3))) < 0.9 && z > PADDY.z0 + 0.2) continue; pts.push([x + (rnd() - 0.5) * 0.2, z + (rnd() - 0.5) * 0.2]); }
-    const im = new THREE.InstancedMesh(g.geometry, M.MAT, pts.length); im.frustumCulled = false;
-    pts.forEach(([x, z], i) => { dummy.position.set(x, 0, z); dummy.rotation.set(0, rnd() * 6, 0); dummy.scale.setScalar(0.85 + rnd() * 0.3); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); });
-    scene.add(im); paddies.push({ kind, im });
-  }
+  const geo = { xanh: M.fromBlender('lua_xanh').geometry, chin: M.fromBlender('lua_chin').geometry };
+  PLOTS.forEach((pl, j) => {
+    const pts = []; for (let x = pl.x0 + 0.4; x < pl.x1 - 0.2; x += 0.75) for (let z = pl.z0 + 0.4; z < pl.z1 - 0.2; z += 0.75) pts.push([x + (rnd() - 0.5) * 0.2, z + (rnd() - 0.5) * 0.2]);
+    const mk = (g) => { const im = new THREE.InstancedMesh(g, M.MAT, pts.length); im.frustumCulled = false; pts.forEach(([x, z], i) => { dummy.position.set(x, 0, z); dummy.rotation.set(0, rnd() * 6, 0); dummy.scale.setScalar(0.85 + rnd() * 0.3); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); }); scene.add(im); return im; };
+    plotMeshes.push({ j, xanh: mk(geo.xanh), chin: mk(geo.chin) });
+  });
 }
 const tint = new THREE.Mesh(new THREE.CircleGeometry(58, 40), new THREE.MeshBasicMaterial({ color: 0xd8b058, transparent: true, opacity: 0, depthWrite: false }));
 tint.rotation.x = -Math.PI / 2; tint.position.y = 0.012; scene.add(tint);
@@ -260,7 +251,7 @@ const world = {
     if (coopLv !== coopKey) { if (coopMesh) coopG.remove(coopMesh); coopMesh = M.coop(S.coop, S.builds.chuong); coopG.add(coopMesh); coopLv = coopKey; }
     cauM.visible = !!S.builds.cau; oapM.visible = !!S.builds.oap; luM.forEach((m, i) => (m.visible = i < (S.builds.lu || 0)));
     phanM.visible = !!S.builds.phan; heap.visible = !S.builds.phan && (S.res.phan || 0) >= 3;
-    for (const p of paddies) p.im.visible = (phaseAt(S.world.step) === 0) === (p.kind === 'lua_chin');
+    { const ph = phaseAt(S.world.step), first = OBJS.findIndex((o) => o.kind === 'thua'); for (const p of plotMeshes) { const ripe = OBJS[first + p.j].st === 'full'; p.chin.visible = ripe; p.xanh.visible = ph !== 0; } } // mùa khô: chín, gặt xong thì chỉ còn gốc; mùa khác: lúa xanh
     syncAnimals(); syncObjs();
     benchM.visible = !!S.builds.ban; { const k = hits.indexOf(benchHit); if (S.builds.ban && k < 0) { scene.add(benchHit); hits.push(benchHit); } else if (!S.builds.ban && k >= 0) { scene.remove(benchHit); hits.splice(k, 1); } }
     BEDS.forEach((o, i) => {
@@ -317,6 +308,7 @@ const objPos = (kind, idx) => kind === 'trap' ? [S.traps[idx].x, S.traps[idx].z]
 let go = null; // {x, z, kind, idx, stuck}
 function near(kind, idx = 0) {
   if (kind === 'river') { const r = riverAt(P.x, P.z, kR); return r.d - r.half < 2.4 || onDock(P.x, P.z); }
+  if (kind === 'obj' && OBJS[idx].plot) { const q = OBJS[idx].plot; return P.x > q.x0 - 1.4 && P.x < q.x1 + 1.4 && P.z > q.z0 - 1.4 && P.z < q.z1 + 1.4; } // thửa ruộng: đứng sát mép là gặt được
   const [x, z] = objPos(kind, idx); return Math.hypot(P.x - x, P.z - z) <= REACH[kind];
 }
 function approach(kind, idx = 0) {
@@ -360,7 +352,7 @@ const pickAction = () => {
   BED_POS.forEach(([x, z], i) => { if (i >= S.bedsN) return; const b = S.beds[i]; add('bed', i, x, z, b ? (bedReady(b) ? '🧺' : '💧') : '🌱', b ? (bedReady(b) ? 'Thu hoạch' : 'Tưới') : 'Gieo hạt'); });
   add('coop', 0, COOP.x, COOP.z, '🐔', 'Chuồng'); add('stall', 0, 4.2, 6.2, '🧺', 'Chợ'); add('house', 0, HOUSE.x, HOUSE.z, '🏠', 'Nhà');
   if (S.builds.ban) add('bench', 0, BENCH.x, BENCH.z, '🔨', 'Bàn thợ');
-  for (const o of OBJS) { if (o.st !== 'full' || Math.hypot(P.x - o.x, P.z - o.z) > 2.2 || !near('obj', o.id)) continue; const d = OBJ[o.kind], lack = d.tool && !S.tools[d.tool]; c.push({ kind: 'obj', idx: o.id, icon: lack ? '🔒' : d.icon, label: lack ? `Cần ${TOOLS[d.tool].name}` : d.verb, d: Math.hypot(P.x - o.x, P.z - o.z) - 0.8 }); }
+  for (const o of OBJS) { if (o.st !== 'full' || (!o.plot && Math.hypot(P.x - o.x, P.z - o.z) > 2.2) || !near('obj', o.id)) continue; const d = OBJ[o.kind], lack = d.tool && !S.tools[d.tool]; c.push({ kind: 'obj', idx: o.id, icon: lack ? '🔒' : d.icon, label: lack ? `Cần ${TOOLS[d.tool].name}` : d.verb, d: Math.hypot(P.x - o.x, P.z - o.z) - 0.8 }); }
   if (near('river')) { const r = riverAt(P.x, P.z, kR); c.push({ kind: 'river', idx: 0, icon: '🎣', label: 'Câu cá', d: r.d - r.half + 0.5 }); }
   c.sort((a, b) => a.d - b.d);
   game.setAction(!game.isBusy() && !go?.kind ? c[0] || null : null);
@@ -409,6 +401,10 @@ canvas.addEventListener('pointerup', (e) => {
   if (r && r.object.userData.kind === 'animal') return game.interact('animal', r.object.userData.idx);
   if (r) return approach(r.object.userData.kind, r.object.userData.idx);
   const po = pickObj(e.clientX, e.clientY); if (po) return approach('obj', po.id);
+  if (ray.ray.intersectPlane(gp, gv)) { // chạm vào thửa ruộng
+    const o = OBJS.find((q) => q.plot && gv.x > q.plot.x0 && gv.x < q.plot.x1 && gv.z > q.plot.z0 && gv.z < q.plot.z1);
+    if (o) return o.st === 'full' ? approach('obj', o.id) : game.toast(phaseAt(S.world.step) === 0 ? 'Thửa này đã gặt xong 🌾' : 'Lúa còn xanh, chờ mùa khô mới chín 🌾');
+  }
   if (ray.ray.intersectPlane(gp, gv) && inWater(gv.x, gv.z, 1.05)) return approach('river', 0); // chạm xuống sông: ra bờ rồi câu
   if (ray.ray.intersectPlane(gp, gv) && !blocked(gv.x, gv.z)) go = { x: gv.x, z: gv.z, kind: null, stuck: 0 };
 });
@@ -460,15 +456,12 @@ const loop = () => {
   if (ffMat.opacity > 0.01) for (let i = 0; i < FF; i++) { const s = ffSeed[i]; ffPos[i * 3] = s[0] + Math.sin(now * 0.5 + s[3]) * 0.8; ffPos[i * 3 + 1] = s[1] + Math.sin(now * 0.9 + s[3] * 2) * 0.3; ffPos[i * 3 + 2] = s[2] + Math.cos(now * 0.4 + s[3]) * 0.8; ffGeo.attributes.position.needsUpdate = true; }
   clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05) * (1 + windK * 5); if (c.position.x > 48) c.position.x = -48; });
   waterMat.emissive.setScalar(0.04 + 0.02 * Math.sin(now * 1.5));
-  lakeFloat.forEach((f) => { f.m.position.y = 0.11 + Math.sin(now * 1.2 + f.ph) * 0.02; });
-  for (const f of drift) { f.s += f.v * dt; if (f.s > 0.97) f.s = 0.03; const q = riverPoint(f.s, kR); f.m.position.set(q.x + q.nx * f.off * q.half, 0.07 + Math.sin(now * 1.3 + f.ph) * 0.015, q.z + q.nz * f.off * q.half); f.m.rotation.y = f.a === 'xuong' ? q.ang - Math.PI / 2 : f.m.rotation.y + dt * 0.05; }
   if (zone.visible && now > nextZone) { nextZone = now + 1; shapeRiver(); }
 
   SPK.forEach((m) => { const u = m.userData, q = riverPoint(u.s, kR); m.position.set(q.x + q.nx * u.off * q.half, 0.11, q.z + q.nz * u.off * q.half); const k = Math.max(0, Math.sin(now * 1.6 + u.ph)); m.material.opacity = k ** 6 * 0.9 * d; m.scale.setScalar(0.5 + k); m.rotation.z = now; });
   BUT.forEach((g, i) => { const u = g.userData; g.visible = d > 0.55; if (!g.visible) return; const t = now * 0.5 + u.ph;
     g.position.set(u.cx + Math.cos(t) * u.r * 1.6, 0.9 + Math.sin(t * 2.3) * 0.25, u.cz + Math.sin(t * 1.3) * u.r * 1.6); g.rotation.y = -t * 1.3 + 1.2;
     const f = Math.sin(now * 22 + i) * 0.9; u.wl.rotation.z = f; u.wr.rotation.z = -f; });
-  decorAnim.forEach((m, i) => { m.position.y += (m.userData.base ??= m.position.y) - m.position.y + Math.sin(now * 1.3 + i) * (m.userData.base > 0 ? 0.015 : 0.01); if (m.userData.base === 0) m.rotation.x = Math.sin(now * 0.9 + i) * 0.02; });
   // gà vịt: vịt chạy đồng ra bờ sông mùa nước nổi ban ngày; con ốm đi chậm
   for (const a of animals.values()) {
     const u = a.userData; u.bob += dt * 8;

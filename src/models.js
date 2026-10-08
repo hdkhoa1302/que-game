@@ -61,7 +61,6 @@ export const tree = (b, x, z, s = 1) => {
   b.cone(c, [x, 2.2 * s, z], 0.6 * s, 1.2 * s, 6);
 };
 export const rock = (b, x, z, s = 1) => b.ball(0x9a9a92, [x, 0.12 * s, z], [0.4 * s, 0.25 * s, 0.35 * s], 5);
-export const flower = (b, x, z, c) => { b.cyl(0x3f8a35, [x, 0.12, z], 0.01, 0.01, 0.24, 3); b.ball(c, [x, 0.27, z], [0.09, 0.07, 0.09], 5); };
 export const fence = (b, x, z, len, rotY = 0) => {
   const n = Math.round(len / 0.7), cs = Math.cos(rotY), sn = Math.sin(rotY);
   for (let i = 0; i <= n; i++) {
@@ -201,6 +200,7 @@ export const objGeo = (kind) => {
       b.cyl(0x7a5a38, [0, 0.06, 0], 0.04, 0.04, 0.75, 4, [0, 0.3, Math.PI / 2]).cyl(0x6a4a28, [0.05, 0.1, 0.05], 0.035, 0.035, 0.55, 4, [0, -0.9, Math.PI / 2]); break;
     case 'pebble':
       b.ball(0x9a9a92, [0, 0.07, 0], [0.16, 0.1, 0.14], 4).ball(0xa8a8a0, [0.2, 0.06, 0.1], [0.12, 0.08, 0.1], 4).ball(0x8a8a84, [-0.15, 0.05, 0.15], [0.1, 0.07, 0.09], 4); break;
+    case 'thua': b.box(0x000000, [0, -9, 0], [0.01, 0.01, 0.01]); break; // không có hình riêng: ruộng vẽ bằng plotMeshes
     default: // weed
       ring(5, (i, a) => b.cone(0x5a8f3a, [Math.cos(a) * 0.1, 0.17, Math.sin(a) * 0.1], 0.06, 0.34, 3, [Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3]));
   }

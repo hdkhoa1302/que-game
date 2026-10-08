@@ -141,6 +141,7 @@ export const YIELD_MUL = [1, 1, 1.5, 2];
 export const OBJ = {
   tree: { name: 'Cây gỗ', icon: '🌳', tool: 'riu', verb: 'Chặt cây', time: 5, yield: { go: [3, 4] }, regrow: 6 },
   palm: { name: 'Cây dừa', icon: '🥥', tool: 'rua', verb: 'Hái dừa', time: 4, yield: { la: [2, 3], dua: [1, 2] }, regrow: 4 },
+  thua: { name: 'Thửa ruộng', icon: '🌾', tool: 'liem', verb: 'Gặt lúa', time: 6, yield: { thoc: [6, 9] }, regrow: 5, phases: [0] }, // chỉ chín mùa khô; thóc vào kho cho gà vịt
   ban: { name: 'Cây bần', icon: '🌳', tool: 'riu', verb: 'Chặt bần', time: 6, yield: { go: [3, 5] }, regrow: 7 },
   nipa: { name: 'Dừa nước', icon: '🌴', tool: 'rua', verb: 'Chặt lá dừa nước', time: 3, yield: { la: [2, 4] }, regrow: 3 },
   bamboo: { name: 'Bụi tre', icon: '🎋', tool: 'rua', verb: 'Chặt tre', time: 3, yield: { tre: [2, 3] }, regrow: 2 },
@@ -156,34 +157,23 @@ export const OBJ = {
   pebble: { name: 'Đá cuội', icon: '⚪', tool: null, verb: 'Nhặt đá', time: 1.2, yield: { da: [1, 1] }, regrow: 2 },
   weed: { name: 'Cỏ dại', icon: '🌱', tool: null, verb: 'Nhổ cỏ', time: 1.2, yield: { soi: [1, 1] }, regrow: 1 },
 };
+// Bố cục theo công dụng. Bờ tây (làng): tài nguyên khởi đầu, tre, gỗ, đá, sét. Bờ đông (qua cầu khỉ): rừng dừa tre, đồng lúa.
 export const ZONES = [
-  { id: 'lang', name: 'Làng', x: 0, z: 2, r: 15, mix: [['branch', 7], ['pebble', 6], ['weed', 9], ['grass', 6], ['berry', 3], ['tree', 4], ['rock', 2], ['bamboo', 3]] },
-  { id: 'rung', name: 'Rừng dừa tre', x: 29, z: -9, r: 10, mix: [['palm', 14], ['bamboo', 16], ['tree', 12], ['grass', 6], ['berry', 4], ['branch', 5]] },
-  { id: 'bai', name: 'Bãi bồi', x: 5, z: 23, r: 11, mix: [['clay', 12], ['grass', 10], ['berry', 5], ['weed', 6], ['pebble', 4]] },
-  { id: 'rach', name: 'Bờ rạch', x: -23, z: 3, r: 11, mix: [['palm', 5], ['grass', 6], ['weed', 5], ['tree', 3], ['ban', 5], ['nipa', 5]] },
-  { id: 'dong', name: 'Đồng lúa', x: 25, z: 8, r: 9, mix: [['grass', 20], ['berry', 5], ['weed', 8]] },
-  { id: 'nui', name: 'Núi đá', x: -5, z: -23, r: 11, mix: [['rock', 14], ['tree', 8], ['berry', 5], ['pebble', 6], ['branch', 4]] },
+  { id: 'lang', name: 'Làng', x: 0, z: 2, r: 15, mix: [['branch', 8], ['pebble', 8], ['weed', 10], ['grass', 8], ['berry', 3], ['tree', 3], ['rock', 1], ['bamboo', 2]] },
+  { id: 'tre', name: 'Lũy tre', x: -19, z: -9, r: 7, mix: [['bamboo', 12], ['branch', 3], ['weed', 3]] },
+  { id: 'nui', name: 'Núi đá', x: -6, z: -23, r: 10, mix: [['rock', 12], ['tree', 8], ['berry', 4], ['pebble', 6], ['branch', 3]] },
+  { id: 'bai', name: 'Bãi bồi', x: 3, z: 22, r: 9, mix: [['clay', 10], ['grass', 9], ['weed', 4], ['berry', 3], ['pebble', 3]] },
+  { id: 'rach', name: 'Bờ rạch', x: -23, z: 3, r: 11, mix: [['palm', 5], ['grass', 4], ['weed', 3], ['tree', 3], ['ban', 4], ['nipa', 4]] },
+  { id: 'rung', name: 'Rừng dừa tre', x: 29, z: -9, r: 10, mix: [['palm', 12], ['bamboo', 14], ['tree', 10], ['branch', 4], ['berry', 3]] },
+  { id: 'dong', name: 'Đồng lúa', x: 25, z: 8, r: 9, mix: [['grass', 10], ['berry', 4], ['weed', 5]] },
 ];
 // vật thể ven nước (dọc sông và quanh rạch)
-export const WATER_MIX = { river: [['snail', 14], ['reed', 18], ['nipa', 12], ['clay', 8], ['dien', 10], ['lily', 10], ['ban', 5]], lake: [['snail', 8], ['reed', 10], ['nipa', 8], ['ban', 4], ['clay', 8], ['dien', 6], ['lily', 6]] };
+export const WATER_MIX = { river: [['snail', 12], ['reed', 14], ['nipa', 10], ['clay', 6], ['dien', 8], ['lily', 8], ['ban', 4]], lake: [['snail', 6], ['reed', 8], ['nipa', 6], ['ban', 3], ['clay', 4], ['dien', 4], ['lily', 4]] };
 export const START_RES = { go: 4, da: 3, soi: 3, tre: 4 };
 
 // Sông Mê Kông thu nhỏ: đường tâm Catmull-Rom qua các điểm (x, z), chảy từ đông bắc xuống đông nam. half = nửa bề rộng ở mực nước trung bình.
 export const RIVER = { pts: [[34, -26], [24, -20], [16, -12], [10, -5], [8.5, 1], [9, 7], [13, 13], [20, 18], [30, 22], [44, 26]], half: 3.3, flow: 0.9 };
 export const riverK = (level) => 0.75 + 0.35 * level; // sông co giãn theo mực nước
-// Đồ trang trí dựng bằng Blender (không khai thác được); r = bán kính tránh vật thể khác. riv: [vị trí dọc sông 0..1, lệch ngang theo nửa bề rộng]
-export const DECOR = [
-  { a: 'xuong', riv: [0.42, 1.12], y: 0.07, r: 2.2 },
-  { a: 'ghe_cho', x: -23.5, z: 3.2, rot: 0.25, y: 0.07, r: 3.0 },
-  { a: 'trau', x: 18, z: 3, rot: 1.2, y: 0, r: 1.6, anim: true },
-  { a: 'trau', x: -18.5, z: 9.5, rot: -0.8, y: 0, r: 1.6, anim: true },
-  { a: 'choi', x: 23.5, z: 5.5, rot: 0.5, y: 0, r: 1.8 },
-  { a: 'gian_bau', x: -10.4, z: -2.0, rot: 1.5708, y: 0, r: 1.8 },
-  { a: 'vong', x: -8.2, z: -8.6, rot: 0.4, y: 0, r: 1.6 },
-];
-// vật trôi theo dòng: s = vị trí dọc sông, off = lệch ngang, v = tốc độ (phần sông mỗi giây)
-export const RIVER_FLOAT = [
-  { a: 'xuong', s: 0.18, off: 0.15, v: 0.0045, sc: 1.0 },
-  ...[[0.1, -0.45, 1.1], [0.27, 0.4, 0.9], [0.36, -0.2, 1.2], [0.5, 0.5, 1.0], [0.6, -0.5, 0.85], [0.72, 0.25, 1.1], [0.85, -0.3, 1.0]].map(([s, off, sc]) => ({ a: 'luc_binh', s, off, v: 0.0022, sc })),
-];
-export const PADDY = { x0: 17, x1: 30, z0: 3, z1: 12 }; // ruộng lúa bên bờ đông
+// Ruộng lúa bên bờ đông: 2×2 thửa, mỗi thửa gặt được một lần mỗi mùa khô (liềm) ra thóc cho gà vịt
+export const PADDY = { x0: 17, x1: 30, z0: 3, z1: 12 };
+export const PLOTS = [0, 1, 2, 3].map((i) => { const w = (PADDY.x1 - PADDY.x0 - 0.6) / 2, h = (PADDY.z1 - PADDY.z0 - 0.6) / 2, x0 = PADDY.x0 + 0.3 + (i % 2) * (w + 0.0), z0 = PADDY.z0 + 0.3 + (i >> 1) * (h + 0.0); return { x0: x0 + 0.1, x1: x0 + w - 0.1, z0: z0 + 0.1, z1: z0 + h - 0.1 }; });

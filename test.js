@@ -91,8 +91,8 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
   const a = genObjects(), b = genObjects();
   assert.deepEqual(a, b, 'vị trí vật thể phải xác định');
   const WET = ['snail', 'reed', 'nipa', 'clay', 'dien', 'lily', 'ban'];
-  assert.ok(a.length > 200 && a.every((o) => !keepOut(o.x, o.z, WET.includes(o.kind))), 'đủ vật thể, không đè khu nhà vườn, không rơi xuống sông');
-  assert.ok(a.every((o) => { const r = riverAt(o.x, o.z, 1.15); return r.d > r.half * 1.0; }), 'không vật thể nào nằm trong nước kể cả lúc nước nổi');
+  assert.ok(a.length > 200 && a.filter((o) => o.kind !== 'thua').every((o) => !keepOut(o.x, o.z, WET.includes(o.kind))), 'đủ vật thể, không đè khu nhà vườn, không rơi xuống sông');
+  assert.ok(a.filter((o) => o.kind !== 'thua').every((o) => { const r = riverAt(o.x, o.z, 1.15); return r.d > r.half * 1.0; }), 'không vật thể nào nằm trong nước kể cả lúc nước nổi');
   for (const k of Object.keys(OBJ)) assert.ok(a.some((o) => o.kind === k), `thiếu loại ${k}`);
   const tree = a.find((o) => o.kind === 'tree'), snail = a.find((o) => o.kind === 'snail'), dien = a.find((o) => o.kind === 'dien');
   const s = { obj: {} };
@@ -122,10 +122,27 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
   const side = (x, z) => { const r = riverAt(x, z), i = Math.round(r.s * (RS.length - 1)), q = RS[Math.min(i, RS.length - 2)]; return Math.sign(q.tx * (z - r.cz) - q.tz * (x - r.cx)); };
   const village = side(0, 0);
   for (const id of ['rung', 'dong']) { const z = ZONES.find((x) => x.id === id); assert.notEqual(side(z.x, z.z), village, `${id} phải ở bờ đông`); }
-  for (const id of ['lang', 'nui', 'bai']) { const z = ZONES.find((x) => x.id === id); assert.equal(side(z.x, z.z), village, `${id} phải ở bờ tây`); }
+  for (const id of ['lang', 'tre', 'nui', 'bai']) { const z = ZONES.find((x) => x.id === id); assert.equal(side(z.x, z.z), village, `${id} phải ở bờ tây`); }
   assert.notEqual(side((PADDY.x0 + PADDY.x1) / 2, (PADDY.z0 + PADDY.z1) / 2), village, 'ruộng lúa ở bờ đông');
   // cầu khỉ phủ hết lòng sông ở hàng z=-1.2 kể cả lúc nước nổi (cầu x ∈ [5.1, 13.0])
   let a = null, b = null; for (let x = 0; x < 20; x += 0.05) { if (riverAt(x, -1.2, riverK(1)).d < riverAt(x, -1.2, riverK(1)).half) { a ??= x; b = x; } }
   assert.ok(a >= 3.5 && a <= 5.4 && b <= 13.0, `bến tre/cầu phải chạm hai bờ (nước ${a}–${b})`);
   console.log(`sông: nước ở z=-1,2 từ x=${a.toFixed(1)} đến ${b.toFixed(1)} — OK`);
+}
+
+// 12. ruộng lúa: 4 thửa trong ruộng, ngoài lòng sông, chỉ gặt được mùa khô, thóc vào kho
+{
+  const { genObjects, objAvail, riverAt } = await import('./src/objs.js');
+  const { PLOTS, PADDY, OBJ, ZONES } = await import('./src/data.js');
+  const plots = genObjects().filter((o) => o.kind === 'thua');
+  assert.equal(plots.length, 4); assert.equal(PLOTS.length, 4);
+  for (const q of PLOTS) { assert.ok(q.x0 >= PADDY.x0 && q.x1 <= PADDY.x1 && q.z0 >= PADDY.z0 && q.z1 <= PADDY.z1, 'thửa nằm trong ruộng'); for (const [x, z] of [[q.x0, q.z0], [q.x1, q.z0], [q.x0, q.z1], [q.x1, q.z1]]) { const r = riverAt(x, z, 1.15); assert.ok(r.d > r.half, 'thửa không đè lòng sông'); } }
+  const S = { obj: {} }, o = plots[0];
+  assert.ok(objAvail(S, o, 5, 0) && !objAvail(S, o, 5, 1) && !objAvail(S, o, 5, 3), 'lúa chỉ chín mùa khô');
+  S.obj[o.id] = 5 + OBJ.thua.regrow; assert.ok(!objAvail(S, o, 6, 0), 'gặt rồi thì chờ mùa sau');
+  assert.ok(OBJ.thua.yield.thoc && OBJ.thua.tool === 'liem');
+  // mỗi mảnh tài nguyên khởi đầu đều có nguồn ở bờ tây (không cần qua sông): tre, gỗ, đá, sợi, rơm, sét, lá dừa
+  const west = new Set(ZONES.filter((z) => ['lang', 'tre', 'nui', 'bai', 'rach'].includes(z.id)).flatMap((z) => z.mix.flatMap(([k]) => Object.keys(OBJ[k].yield))));
+  for (const r of ['go', 'da', 'soi', 'tre', 'rom', 'set', 'la']) assert.ok(west.has(r), `bờ tây phải có ${r} để bắc cầu`);
+  console.log('ruộng lúa và nguồn tài nguyên bờ tây — OK');
 }

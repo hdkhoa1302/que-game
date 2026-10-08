@@ -237,6 +237,7 @@ const harvest = (id) => {
       const got = [];
       for (const [r, [lo, hi]] of Object.entries(d.yield)) {
         const n = Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * (d.tool ? YIELD_MUL[tier] : 1)), add = Math.min(n, RES_CAP - (S.res[r] || 0));
+        if (r === 'thoc') { S.inv.grain += n; got.push(`+${n}🌾 thóc`); continue; } // thóc vào kho cho gà vịt ăn
         if (add > 0) { S.res[r] = (S.res[r] || 0) + add; got.push(`+${add}${RES[r].icon}`); }
       }
       S.obj[id] = day + d.regrow; S.stats.picked++; if (o.kind === 'tree') S.stats.chopped++;
