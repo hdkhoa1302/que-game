@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import * as A from './assets.js';
 
 // Một vật liệu duy nhất (màu theo đỉnh) → mỗi mô hình gộp thành 1 draw call.
 export const MAT = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -269,6 +270,8 @@ export const objGeo = (kind) => {
     default: // weed
       ring(5, (i, a) => b.cone(0x5a8f3a, [Math.cos(a) * 0.1, 0.17, Math.sin(a) * 0.1], 0.06, 0.34, 3, [Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3]));
   }
+  if (kind === 'ban' && A.has('ban')) return { full: A.geo('ban'), spent: new B().cyl(0x6b4a36, [0, 0.2, 0], 0.22, 0.3, 0.4, 7).mesh().geometry };
+  if (kind === 'nipa' && A.has('dua_nuoc')) return { full: A.geo('dua_nuoc'), spent: new B().ball(0x6a4a22, [0, 0.15, 0], [0.22, 0.14, 0.22], 5).mesh().geometry };
   return { full: b.mesh().geometry, spent: sp.g.length ? sp.mesh().geometry : null };
 };
 
@@ -280,4 +283,19 @@ export const bench = () => {
   b.box(0x7a4f2b, [-0.35, 0.9, 0.1], [0.4, 0.05, 0.05], [0, 0.4, 0]); b.box(0x5a5a60, [-0.5, 0.93, 0.18], [0.12, 0.1, 0.08], [0, 0.4, 0]);
   b.box(0xb98a52, [0, 0.2, 0.6], [1.0, 0.4, 0.3]);
   return b.mesh();
+};
+
+// ---- Mô hình từ Blender (rơi về mô hình dựng bằng code nếu chưa tải được) ----
+export const fromBlender = (name) => (A.has(name) ? new THREE.Mesh(A.geo(name), MAT) : null);
+export const houseB = (lv) => fromBlender(`nha${lv}`) ?? house(lv);
+export const stallB = () => fromBlender('quay_cho') ?? stall();
+export const dockB = () => fromBlender('ben_tre') ?? dock();
+export const bridgeB = () => fromBlender('cau_khi') ?? monkeyBridge();
+export const playerB = () => {
+  const body = fromBlender('player_body'), lg = fromBlender('player_leg');
+  if (!body || !lg) return player();
+  const g = new THREE.Group(), mk = (x) => { const p = new THREE.Group(), m = lg.clone(); p.add(m); p.position.set(x, 0.4, 0); return p; };
+  const legL = mk(-0.1), legR = mk(0.1);
+  g.add(body, legL, legR, blob(0.32)); g.userData = { body, legL, legR };
+  return g;
 };

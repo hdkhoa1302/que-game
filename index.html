@@ -95,6 +95,37 @@ body.busy #joy,body.busy #act,body.busy #chips,body.busy #hbar{display:none}
 #load{position:fixed;inset:0;z-index:20;background:linear-gradient(#bfe6f5,#cfeab0);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:22px;gap:10px;transition:opacity .4s}
 #load div{font-size:60px;animation:pulse2 1.2s infinite}
 @keyframes pulse2{50%{transform:scale(1.12)}}
+
+/* ===== Phong cách miền Tây: khăn rằn, nón lá, lá chuối, phù sa ===== */
+:root{--ink:#3b2a1a;--paper:#fff6e0;--glass:rgba(255,246,224,.92);--line:#dcc48c;--edge:#b89a58;--green:#4a8f3a;--gdark:#2f6a2a;--gold:#f0b43a;--ran:repeating-linear-gradient(90deg,#c83a2a 0 9px,#f6efe2 9px 12px,#25252b 12px 14px,#f6efe2 14px 17px)}
+body{background:#8fd0e6}
+.glass{border-radius:20px;border-width:2.5px}
+#bar{padding-bottom:12px;overflow:hidden}
+#bar:after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:var(--ran);opacity:.95}
+#sheet{border-top:0;padding-top:28px}
+#sheet:after{content:"";position:absolute;left:0;right:0;top:0;height:9px;background:var(--ran);border-radius:28px 28px 0 0}
+#sheet:before{top:14px;background:#d9bf86}
+#sheet h2{font-size:21px;letter-spacing:.2px}
+#sheet h2:after{content:"";display:block;width:54px;height:4px;margin-top:5px;border-radius:3px;background:linear-gradient(90deg,#4a8f3a,#9bcf5a)}
+.x{top:20px}
+#quest{border-left:7px solid #c83a2a}
+#coins b{background:radial-gradient(circle at 35% 30%,#fff0a8,#e8b23a 60%,#c88a1e);color:#7a4f10}
+.row .ic{background:#f6e7b8;border:2px solid #e8d49a}
+.btn{background:linear-gradient(#78b95a,#4a8f3a);box-shadow:0 3px 0 var(--gdark)}
+.btn.gold{background:linear-gradient(#ffd070,#f0a82a);color:#4a2f10}
+#act{background:radial-gradient(circle at 35% 25%,#8fd06a,#4a8f3a 70%);border-color:#fff6e0}
+#hbar{border-left:6px solid #4a8f3a}
+#joy{background:radial-gradient(circle,rgba(255,246,224,.3),rgba(120,185,90,.35));border-color:rgba(255,246,224,.9)}
+#joy:before{border-color:rgba(255,246,224,.75);inset:12px}
+#joy i{background:radial-gradient(circle at 50% 38%,#f7e9b8 0 14%,#e9cf86 15% 38%,#f3dc9a 39% 62%,#d9b45a 63% 100%);border:3px solid #b08a3a;box-shadow:0 3px 0 #8a6a28,0 6px 10px rgba(0,0,0,.25)}
+#zone{border-color:#a8c870;background:rgba(235,246,210,.92)}
+#toast{background:rgba(70,45,20,.95);border:2px solid #dcc48c}
+#load{background:linear-gradient(#cfeaf5 0 55%,#9ed0e6 55%);overflow:hidden}
+#load div{font-size:72px;animation:boat 2.4s ease-in-out infinite}
+@keyframes boat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(10px) rotate(4deg)}}
+#load:after{content:"Miền Tây sông nước";font-size:13px;font-weight:700;opacity:.6;letter-spacing:2px;text-transform:uppercase}
+#load:before{content:"";position:absolute;left:0;right:0;bottom:0;height:46%;background:repeating-linear-gradient(0deg,rgba(255,255,255,.18) 0 3px,transparent 3px 22px),linear-gradient(#7cc0dc,#4f9cc4)}
+
 [hidden]{display:none!important}
 </style>
 </head>
@@ -116,7 +147,7 @@ body.busy #joy,body.busy #act,body.busy #chips,body.busy #hbar{display:none}
 </div>
 <div id="back" hidden></div>
 <div id="sheet" hidden><button class="x" data-a="close">✕</button><div id="sheetBody"></div></div>
-<div id="load"><div>🏡</div>Về quê…</div>
-<script type="module" src="/src/main.js"></script>
+<div id="load"><div>🛶</div>Về miệt vườn…</div>
+<script type="module" src="/src/boot.js"></script>
 </body>
 </html>

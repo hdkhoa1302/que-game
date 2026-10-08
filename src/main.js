@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { S, tick, stageOf, bedReady, trapState, save, offlineSummary } from './state.js';
 import { CROPS, PHASES, WEATHER, SP, OBJ, TOOLS, WORLD_R, WALK_R, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
+import { DECOR, PADDY } from './data.js';
 import { genObjects, objAvail, zoneAt, keepOut, LAKE, inEll } from './objs.js';
 import { phaseAt, levelAt, stepF, isFlooded, lifeStage, dayAt } from './sim.js';
 import { colorOf, avg } from './genes.js';
@@ -70,8 +71,8 @@ const lake = new THREE.Group();
   mud.scale.set(LAKE.rx * 1.12, 1, LAKE.rz * 1.12); mud.position.y = 0.02; wat.scale.set(LAKE.rx, 1, LAKE.rz); wat.position.y = 0.05;
   lake.add(mud, wat); lake.position.set(LAKE.x, 0, LAKE.z); scene.add(lake);
 }
-const dockM = M.dock(); dockM.position.set(1.7, 0, -1.2); scene.add(dockM);
-const cauM = M.monkeyBridge(); cauM.position.set(4.45, 0, -1.2); cauM.visible = false; scene.add(cauM);
+const dockM = M.dockB(); dockM.position.set(1.3, 0, -1.2); scene.add(dockM);
+const cauM = M.bridgeB(); cauM.position.set(4.55, 0, -1.2); cauM.visible = false; scene.add(cauM);
 const oapM = M.nest(); oapM.position.set(-2.2, 0, 6.2); oapM.visible = false; scene.add(oapM);
 const luM = [[-2.6, -3.2], [-1.6, -3.2]].map(([x, z]) => { const m = M.lu(); m.position.set(x, 0, z); m.visible = false; scene.add(m); return m; });
 const phanM = M.manure(); phanM.position.set(-6.6, 0, 7.2); phanM.visible = false; scene.add(phanM);
@@ -106,6 +107,27 @@ const pickObj = (cx, cy) => { // chạm gần nhất trong 38px (màn hình) tro
   for (const o of OBJS) { if (o.st !== 'full') continue; v.set(o.x, 0.5, o.z).project(camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * innerWidth - cx, (1 - v.y) / 2 * innerHeight - cy); if (d < bd) { bd = d; best = o; } }
   return best;
 };
+// ---- trang trí dựng bằng Blender ----
+const decorAnim = [];
+for (const d of DECOR) { const m = M.fromBlender(d.a); if (!m) continue; m.position.set(d.x, d.y, d.z); m.rotation.y = d.rot; scene.add(m); if (d.anim) decorAnim.push(m); if (d.a === 'xuong' || d.a === 'ghe_cho') decorAnim.push(m); }
+const floaters = [];
+const lucBinh = (parent, e, list) => list.forEach(([fx, fz, sc], i) => { const m = M.fromBlender('luc_binh'); if (!m) return; m.position.set(e.rx * fx, 0.11, e.rz * fz); m.scale.setScalar(sc); m.rotation.y = i * 1.7; parent.add(m); floaters.push({ m, ph: i * 1.3 + fx }); });
+lucBinh(pond, POND0, [[-0.45, 0.3, 1.1], [0.15, -0.55, 0.9], [0.5, 0.35, 1.2], [-0.05, 0.6, 0.8], [-0.6, -0.2, 0.85]]);
+lucBinh(lake, LAKE, [[-0.4, 0.2, 1.3], [0.3, -0.45, 1.1], [0.55, 0.3, 1.4], [-0.1, 0.55, 1.0], [-0.65, -0.35, 1.2], [0.1, 0.05, 1.0]]);
+const paddies = [];
+{ // ruộng lúa: nước + bờ + khóm lúa (xanh hoặc chín theo mùa)
+  const w = PADDY.x1 - PADDY.x0, h = PADDY.z1 - PADDY.z0, cx = (PADDY.x0 + PADDY.x1) / 2, cz = (PADDY.z0 + PADDY.z1) / 2;
+  const mirror = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), new THREE.MeshLambertMaterial({ color: 0x7fb4c4, transparent: true, opacity: 0.8, flatShading: true })); mirror.position.set(cx, 0.03, cz); scene.add(mirror);
+  const bund = new M.B(); for (let i = 0; i <= 3; i++) bund.box(0x8a6a3a, [cx, 0.08, PADDY.z0 + (h * i) / 3], [w + 0.4, 0.16, 0.3]); [PADDY.x0, PADDY.x1].forEach((x) => bund.box(0x8a6a3a, [x, 0.08, cz], [0.3, 0.16, h]));
+  scene.add(bund.mesh());
+  for (const kind of ['lua_xanh', 'lua_chin']) {
+    const g = M.fromBlender(kind); if (!g) continue;
+    const pts = []; for (let x = PADDY.x0 + 0.6; x < PADDY.x1 - 0.3; x += 0.75) for (let z = PADDY.z0 + 0.6; z < PADDY.z1 - 0.3; z += 0.75) { const k = Math.floor(((x - PADDY.x0) / 0.75)) % 1 === 0 ? 1 : 0; if (Math.abs(((z - PADDY.z0) % (h / 3))) < 0.9 && z > PADDY.z0 + 0.2) continue; pts.push([x + (rnd() - 0.5) * 0.2, z + (rnd() - 0.5) * 0.2]); }
+    const im = new THREE.InstancedMesh(g.geometry, M.MAT, pts.length); im.frustumCulled = false;
+    pts.forEach(([x, z], i) => { dummy.position.set(x, 0, z); dummy.rotation.set(0, rnd() * 6, 0); dummy.scale.setScalar(0.85 + rnd() * 0.3); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); });
+    scene.add(im); paddies.push({ kind, im });
+  }
+}
 const tint = new THREE.Mesh(new THREE.CircleGeometry(58, 40), new THREE.MeshBasicMaterial({ color: 0xd8b058, transparent: true, opacity: 0, depthWrite: false }));
 tint.rotation.x = -Math.PI / 2; tint.position.y = 0.012; scene.add(tint);
 const RAIN_N = 220, rainPos = new Float32Array(RAIN_N * 3);
@@ -136,9 +158,10 @@ const HOUSE = new THREE.Vector3(-5.2, 0, -5.2);
 const houseG = new THREE.Group(); houseG.position.copy(HOUSE); houseG.rotation.y = 0.6; scene.add(houseG);
 addHit(M.hit('house', 0, 3.6, 3.4, 3, [HOUSE.x, 1.6, HOUSE.z]));
 const smoke = [0, 1, 2, 3].map(() => { const s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 5, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false })); houseG.add(s); return s; });
-let houseMesh, houseLv = 0;
+let houseMesh, houseLv = 0, SM = [0.6, 2.7, 0.3];
+const SMOKE = [[0.6, 2.7, 0.3], [1.1, 3.5, -0.4], [2.7, 2.4, -0.3]]; // chỗ khói bốc lên theo cấp nhà
 
-const stall = M.stall(); stall.position.set(4.2, 0, 6.2); stall.rotation.y = -0.3; scene.add(stall);
+const stall = M.stallB(); stall.position.set(4.2, 0, 6.2); stall.rotation.y = -0.3; scene.add(stall);
 addHit(M.hit('stall', 0, 3.4, 3, 2.2, [4.2, 1.4, 6.2]));
 const stallLabel = M.bubble('🧺'); stallLabel.position.set(4.2, 3.6, 6.2); scene.add(stallLabel);
 
@@ -217,11 +240,12 @@ const syncAnimals = () => {
 // ---------- refresh(): đồng bộ thế giới theo state ----------
 const world = {
   refresh() {
-    if (houseLv !== S.house) { if (houseMesh) houseG.remove(houseMesh); houseMesh = M.house(S.house); houseG.add(houseMesh); houseLv = S.house; smoke.forEach((s) => (s.visible = S.house >= 2)); }
+    if (houseLv !== S.house) { if (houseMesh) houseG.remove(houseMesh); houseMesh = M.houseB(S.house); houseG.add(houseMesh); houseLv = S.house; SM = SMOKE[S.house - 1]; }
     const coopKey = `${S.coop}:${!!S.builds.chuong}`;
     if (coopLv !== coopKey) { if (coopMesh) coopG.remove(coopMesh); coopMesh = M.coop(S.coop, S.builds.chuong); coopG.add(coopMesh); coopLv = coopKey; }
     cauM.visible = !!S.builds.cau; oapM.visible = !!S.builds.oap; luM.forEach((m, i) => (m.visible = i < (S.builds.lu || 0)));
     phanM.visible = !!S.builds.phan; heap.visible = !S.builds.phan && (S.res.phan || 0) >= 3;
+    for (const p of paddies) p.im.visible = (phaseAt(S.world.step) === 0) === (p.kind === 'lua_chin');
     syncAnimals(); syncObjs();
     benchM.visible = !!S.builds.ban; { const k = hits.indexOf(benchHit); if (S.builds.ban && k < 0) { scene.add(benchHit); hits.push(benchHit); } else if (!S.builds.ban && k >= 0) { scene.remove(benchHit); hits.splice(k, 1); } }
     BEDS.forEach((o, i) => {
@@ -262,9 +286,9 @@ const world = {
 };
 
 // ---------- Nhân vật ----------
-const player = M.player(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
+const player = M.playerB(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
 const P = player.position;
-const onDock = (x, z) => x > 1.5 && x < (S.builds.cau ? 9.2 : 4.5) && z > -1.9 && z < -0.5;
+const onDock = (x, z) => x > 1.5 && x < (S.builds.cau ? 9.2 : 4.7) && z > -1.9 && z < -0.5;
 const SOLID = [[HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5], [BENCH.x, BENCH.z, 0.9]];
 const blocked = (x, z) => (inPond(x, z, 0.97) && !onDock(x, z)) || inEll(LAKE, x, z, 0.97) || Math.hypot(x, z) > WALK_R || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
 const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4, bench: 2.8, obj: 1.8 };
@@ -422,6 +446,8 @@ const loop = () => {
   BUT.forEach((g, i) => { const u = g.userData; g.visible = d > 0.55; if (!g.visible) return; const t = now * 0.5 + u.ph;
     g.position.set(u.cx + Math.cos(t) * u.r * 1.6, 0.9 + Math.sin(t * 2.3) * 0.25, u.cz + Math.sin(t * 1.3) * u.r * 1.6); g.rotation.y = -t * 1.3 + 1.2;
     const f = Math.sin(now * 22 + i) * 0.9; u.wl.rotation.z = f; u.wr.rotation.z = -f; });
+  decorAnim.forEach((m, i) => { m.position.y += (m.userData.base ??= m.position.y) - m.position.y + Math.sin(now * 1.3 + i) * (m.userData.base > 0 ? 0.015 : 0.01); if (m.userData.base === 0) m.rotation.x = Math.sin(now * 0.9 + i) * 0.02; });
+  floaters.forEach((f) => { f.m.position.y = 0.11 + Math.sin(now * 1.2 + f.ph) * 0.02; f.m.rotation.y += dt * 0.05; });
   // gà vịt: vịt chạy đồng ra bờ ao mùa nước nổi ban ngày; con ốm đi chậm
   for (const a of animals.values()) {
     const u = a.userData; u.bob += dt * 8;
@@ -446,7 +472,7 @@ const loop = () => {
   TRAPS.forEach((o, i) => { if (o.ring.visible) { const k = (now * 0.5 + i * 0.3) % 1; o.ring.scale.setScalar(0.6 + k); o.ring.material.opacity = 0.55 * (1 - k); } if (o.bub.visible) o.bub.position.y = 1.5 + Math.sin(now * 4 + i) * 0.12; });
   BEDS.forEach((o, i) => { if (o.readyBub) o.readyBub.position.y = 1.5 + Math.sin(now * 4 + i) * 0.12; });
   eggBub.position.y = 2.8 + Math.sin(now * 4) * 0.12; stallLabel.position.y = 3.6 + Math.sin(now * 2) * 0.08;
-  smoke.forEach((s, i) => { const k = (now * 0.3 + i / smoke.length) % 1; s.position.set(0.9 + k * 0.5, 3.3 + k * 1.8, -0.4); s.scale.setScalar(0.5 + k * 1.2); s.material.opacity = 0.5 * (1 - k); });
+  smoke.forEach((s, i) => { const k = (now * 0.3 + i / smoke.length) % 1; s.position.set(SM[0] + k * 0.5, SM[1] + k * 1.6, SM[2]); s.scale.setScalar(0.5 + k * 1.2); s.material.opacity = 0.5 * (1 - k); });
 
   stepPlayer(dt, now); placeCam();
   if (now > nextAct) { nextAct = now + 0.2; pickAction(); }
@@ -461,6 +487,7 @@ const before = S.last;
 tick(); world.refresh(); game.init(world);
 const msg = offlineSummary(before); if (msg) setTimeout(() => game.toast('Trong lúc bạn vắng: ' + msg, 4500), 900);
 game.after(); save();
+if (!S.stats.picked && !S.stats.fish && !S.builds.ban) setTimeout(() => game.toast('Chào bạn về miệt vườn! 🛶 Chạm cành khô, đá cuội để nhặt, rồi dựng bàn thợ ở 🏠 Nhà.', 5200), 1500);
 requestAnimationFrame(loop);
 addEventListener('pagehide', () => { tick(); save(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); world.refresh(); } });

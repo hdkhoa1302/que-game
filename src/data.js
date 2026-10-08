@@ -35,7 +35,7 @@ export const TRAP_CAP = 8 * 60 * MIN; // tối đa 8 giờ khi offline
 export const UP = {
   rod: [0, 80, 220], // giá lên cấp 2, 3 (index = cấp-1 → giá lên cấp kế)
   trap: [0, 60, 140, 300], // số lờ 1..4
-  bed: [0, 0, 0, 60, 120, 240], // luống 1..6 (3 luống đầu miễn phí)
+  bed: [0, 25, 40, 60, 120, 240], // luống 1..6 (3 luống đầu miễn phí)
   coop: [0, 100, 250],
   house: [0, 250, 700],
 };
@@ -140,6 +140,8 @@ export const YIELD_MUL = [1, 1, 1.5, 2];
 export const OBJ = {
   tree: { name: 'Cây gỗ', icon: '🌳', tool: 'riu', verb: 'Chặt cây', time: 5, yield: { go: [3, 4] }, regrow: 6 },
   palm: { name: 'Cây dừa', icon: '🥥', tool: 'rua', verb: 'Hái dừa', time: 4, yield: { la: [2, 3], dua: [1, 2] }, regrow: 4 },
+  ban: { name: 'Cây bần', icon: '🌳', tool: 'riu', verb: 'Chặt bần', time: 6, yield: { go: [3, 5] }, regrow: 7 },
+  nipa: { name: 'Dừa nước', icon: '🌴', tool: 'rua', verb: 'Chặt lá dừa nước', time: 3, yield: { la: [2, 4] }, regrow: 3 },
   bamboo: { name: 'Bụi tre', icon: '🎋', tool: 'rua', verb: 'Chặt tre', time: 3, yield: { tre: [2, 3] }, regrow: 2 },
   rock: { name: 'Tảng đá', icon: '🪨', tool: 'cuoc', verb: 'Đập đá', time: 6, yield: { da: [2, 3] }, regrow: 8 },
   grass: { name: 'Cỏ rơm', icon: '🌾', tool: 'liem', verb: 'Cắt rơm', time: 2, yield: { rom: [2, 3], soi: [0, 1] }, regrow: 1 },
@@ -157,10 +159,22 @@ export const ZONES = [
   { id: 'lang', name: 'Làng', x: 0, z: 2, r: 15, mix: [['branch', 7], ['pebble', 6], ['weed', 9], ['grass', 6], ['berry', 3], ['tree', 4], ['rock', 2], ['bamboo', 3]] },
   { id: 'rung', name: 'Rừng dừa tre', x: 19, z: -19, r: 12, mix: [['palm', 14], ['bamboo', 16], ['tree', 12], ['grass', 6], ['berry', 4], ['branch', 5]] },
   { id: 'bai', name: 'Bãi bồi', x: 5, z: 23, r: 11, mix: [['clay', 12], ['grass', 10], ['berry', 5], ['weed', 6], ['pebble', 4]] },
-  { id: 'rach', name: 'Bờ rạch', x: -23, z: 3, r: 11, mix: [['palm', 6], ['grass', 6], ['weed', 5], ['tree', 5]] },
+  { id: 'rach', name: 'Bờ rạch', x: -23, z: 3, r: 11, mix: [['palm', 5], ['grass', 6], ['weed', 5], ['tree', 3], ['ban', 5], ['nipa', 5]] },
   { id: 'dong', name: 'Đồng lúa', x: 23, z: 9, r: 10, mix: [['grass', 20], ['berry', 5], ['weed', 8]] },
   { id: 'nui', name: 'Núi đá', x: -5, z: -23, r: 11, mix: [['rock', 14], ['tree', 8], ['berry', 5], ['pebble', 6], ['branch', 4]] },
 ];
 // vật thể ven nước (quanh ao làng và rạch)
-export const WATER_MIX = { pond: [['snail', 6], ['reed', 10], ['clay', 4], ['dien', 5], ['lily', 5]], lake: [['snail', 8], ['reed', 14], ['clay', 8], ['dien', 6], ['lily', 6]] };
+export const WATER_MIX = { pond: [['snail', 6], ['reed', 8], ['nipa', 4], ['clay', 4], ['dien', 5], ['lily', 5]], lake: [['snail', 8], ['reed', 10], ['nipa', 8], ['ban', 4], ['clay', 8], ['dien', 6], ['lily', 6]] };
 export const START_RES = { go: 4, da: 3, soi: 3, tre: 4 };
+
+// Đồ trang trí dựng bằng Blender (không khai thác được); r = bán kính tránh vật thể khác
+export const DECOR = [
+  { a: 'xuong', x: 2.9, z: -3.9, rot: 0.55, y: 0.07, r: 2.0 },
+  { a: 'ghe_cho', x: -23.5, z: 3.2, rot: 0.25, y: 0.07, r: 3.0 },
+  { a: 'trau', x: 16, z: 2, rot: 1.2, y: 0, r: 1.6, anim: true },
+  { a: 'trau', x: -18.5, z: 9.5, rot: -0.8, y: 0, r: 1.6, anim: true },
+  { a: 'choi', x: 21.5, z: 4.5, rot: 0.5, y: 0, r: 1.8 },
+  { a: 'gian_bau', x: -10.4, z: -2.0, rot: 1.5708, y: 0, r: 1.8 },
+  { a: 'vong', x: -8.2, z: -8.6, rot: 0.4, y: 0, r: 1.6 },
+];
+export const PADDY = { x0: 16.5, x1: 29.5, z0: 13, z1: 23 }; // ruộng lúa ở Đồng lúa
