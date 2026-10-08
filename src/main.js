@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { S, tick, stageOf, bedReady, trapState, save, offlineSummary } from './state.js';
 import { CROPS, PHASES, WEATHER, SP, OBJ, TOOLS, WORLD_R, WALK_R, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
-import { DECOR, PADDY } from './data.js';
-import { genObjects, objAvail, zoneAt, keepOut, LAKE, inEll } from './objs.js';
+import { PADDY, RIVER_FLOAT, riverK } from './data.js';
+import { genObjects, objAvail, zoneAt, keepOut, LAKE, inEll, RS, riverAt, riverPoint, shallowAt, DECOR_R } from './objs.js';
 import { phaseAt, levelAt, stepF, isFlooded, lifeStage, dayAt } from './sim.js';
 import { colorOf, avg } from './genes.js';
 import * as M from './models.js';
@@ -39,8 +39,7 @@ addEventListener('resize', fit); fit(); placeCam();
 
 // ---------- Tĩnh: nền, cây, hàng rào (gộp 1 mesh) ----------
 const rnd = (() => { let a = 7; return () => ((a = (a * 16807) % 2147483647) - 1) / 2147483646; })();
-const POND = { x: 6.2, z: -1.2, rx: 4.3, rz: 3.2 }, POND0 = { rx: 4.3, rz: 3.2 };
-const inPond = (x, z, k = 1.25) => ((x - POND.x) / (POND.rx * k)) ** 2 + ((z - POND.z) / (POND.rz * k)) ** 2 < 1;
+let kR = riverK(0.45); // hệ số bề rộng sông theo mực nước (cập nhật mỗi khung hình)
 {
   const b = new M.B();
   b.cyl(0x6fb65a, [0, -0.25, 0], 58, 58.4, 0.5, 40);
@@ -55,24 +54,43 @@ const inPond = (x, z, k = 1.25) => ((x - POND.x) / (POND.rx * k)) ** 2 + ((z - P
   scene.add(b.mesh());
 }
 
-// pond
-const pond = new THREE.Group();
-{
-  const mud = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 24), new THREE.MeshLambertMaterial({ color: 0x8a6a45, flatShading: true }));
-  mud.scale.set(POND.rx * 1.12, 1, POND.rz * 1.12); mud.position.y = 0.02;
-  const water = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 28), new THREE.MeshLambertMaterial({ color: 0x4aa8d8, emissive: 0x0b2a40, flatShading: true }));
-  water.scale.set(POND.rx, 1, POND.rz); water.position.y = 0.05;
-  pond.add(mud, water); pond.position.set(POND.x, 0, POND.z); pond.userData = { water };
-  scene.add(pond);
-}
+// ---------- Sông: dải nước có dòng chảy, bờ bùn, dải nước nông để đặt lờ ----------
+const RN = RS.length;
+const ribbonGeo = (uv) => {
+  const g = new THREE.BufferGeometry(), idx = [];
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RN * 6), 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(RN * 6).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+  if (uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(RN * 4).map((_, i) => (i % 2 ? RS[i >> 2].L / 6 : (i >> 1) & 1)), 2));
+  for (let i = 0; i < RN - 1; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  g.setIndex(idx); return g;
+};
+// lo/hi: lệch ngang theo nửa bề rộng (−1..1 là lòng sông); y: độ cao
+const fillRibbon = (g, k, lo, hi, y) => {
+  const p = g.attributes.position.array;
+  for (let i = 0; i < RN; i++) { const q = RS[i], h = q.half * k; p.set([q.x + q.nx * h * lo, y, q.z + q.nz * h * lo, q.x + q.nx * h * hi, y, q.z + q.nz * h * hi], i * 6); }
+  g.attributes.position.needsUpdate = true; g.computeBoundingSphere();
+};
+const riverTex = (() => {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128; const g = c.getContext('2d'); g.fillStyle = '#58b2dc'; g.fillRect(0, 0, 64, 128);
+  for (let i = 0; i < 54; i++) { g.strokeStyle = `rgba(255,255,255,${0.06 + rnd() * 0.18})`; g.lineWidth = 1 + rnd() * 2; const x = rnd() * 64, y = rnd() * 128; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 6, y + 8 + rnd() * 26); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const mudG = ribbonGeo(false), waterG = ribbonGeo(true), zoneG = [ribbonGeo(false), ribbonGeo(false)];
+const waterMat = new THREE.MeshLambertMaterial({ map: riverTex, emissive: 0x0b2a40, side: THREE.DoubleSide });
+scene.add(new THREE.Mesh(mudG, new THREE.MeshLambertMaterial({ color: 0x8a6a45, side: THREE.DoubleSide })), new THREE.Mesh(waterG, waterMat));
+const zone = new THREE.Group(); // dải nước nông sáng lên khi đặt lờ
+for (const g of zoneG) { const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x9be8a0, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide })); m.frustumCulled = false; zone.add(m); }
+zone.visible = false; scene.add(zone);
+const shapeRiver = () => { fillRibbon(mudG, kR, -1.16, 1.16, 0.02); fillRibbon(waterG, kR, -1, 1, 0.06); fillRibbon(zoneG[0], kR, 0.5, 0.97, 0.1); fillRibbon(zoneG[1], kR, -0.97, -0.5, 0.1); };
+shapeRiver();
 const lake = new THREE.Group();
 {
   const mud = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 24), new THREE.MeshLambertMaterial({ color: 0x8a6a45, flatShading: true })), wat = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 28), new THREE.MeshLambertMaterial({ color: 0x5aa6c8, emissive: 0x0b2a40, flatShading: true }));
   mud.scale.set(LAKE.rx * 1.12, 1, LAKE.rz * 1.12); mud.position.y = 0.02; wat.scale.set(LAKE.rx, 1, LAKE.rz); wat.position.y = 0.05;
   lake.add(mud, wat); lake.position.set(LAKE.x, 0, LAKE.z); scene.add(lake);
 }
-const dockM = M.dockB(); dockM.position.set(1.3, 0, -1.2); scene.add(dockM);
-const cauM = M.bridgeB(); cauM.position.set(4.55, 0, -1.2); cauM.visible = false; scene.add(cauM);
+const dockM = M.dockB(); dockM.position.set(2.6, 0, -1.2); scene.add(dockM);
+const cauM = M.bridgeB(); cauM.position.set(5.1, 0, -1.2); cauM.scale.x = 1.66; cauM.visible = false; scene.add(cauM);
 const oapM = M.nest(); oapM.position.set(-2.2, 0, 6.2); oapM.visible = false; scene.add(oapM);
 const luM = [[-2.6, -3.2], [-1.6, -3.2]].map(([x, z]) => { const m = M.lu(); m.position.set(x, 0, z); m.visible = false; scene.add(m); return m; });
 const phanM = M.manure(); phanM.position.set(-6.6, 0, 7.2); phanM.visible = false; scene.add(phanM);
@@ -109,11 +127,12 @@ const pickObj = (cx, cy) => { // chạm gần nhất trong 38px (màn hình) tro
 };
 // ---- trang trí dựng bằng Blender ----
 const decorAnim = [];
-for (const d of DECOR) { const m = M.fromBlender(d.a); if (!m) continue; m.position.set(d.x, d.y, d.z); m.rotation.y = d.rot; scene.add(m); if (d.anim) decorAnim.push(m); if (d.a === 'xuong' || d.a === 'ghe_cho') decorAnim.push(m); }
-const floaters = [];
-const lucBinh = (parent, e, list) => list.forEach(([fx, fz, sc], i) => { const m = M.fromBlender('luc_binh'); if (!m) return; m.position.set(e.rx * fx, 0.11, e.rz * fz); m.scale.setScalar(sc); m.rotation.y = i * 1.7; parent.add(m); floaters.push({ m, ph: i * 1.3 + fx }); });
-lucBinh(pond, POND0, [[-0.45, 0.3, 1.1], [0.15, -0.55, 0.9], [0.5, 0.35, 1.2], [-0.05, 0.6, 0.8], [-0.6, -0.2, 0.85]]);
+for (const d of DECOR_R) { const m = M.fromBlender(d.a); if (!m) continue; m.position.set(d.x, d.y, d.z); m.rotation.y = d.rot; scene.add(m); if (d.anim || d.riv || d.a === 'ghe_cho') decorAnim.push(m); }
+const lucBinh = (parent, e, list) => list.forEach(([fx, fz, sc], i) => { const m = M.fromBlender('luc_binh'); if (!m) return; m.position.set(e.rx * fx, 0.11, e.rz * fz); m.scale.setScalar(sc); m.rotation.y = i * 1.7; parent.add(m); lakeFloat.push({ m, ph: i * 1.3 + fx }); });
+const lakeFloat = [];
 lucBinh(lake, LAKE, [[-0.4, 0.2, 1.3], [0.3, -0.45, 1.1], [0.55, 0.3, 1.4], [-0.1, 0.55, 1.0], [-0.65, -0.35, 1.2], [0.1, 0.05, 1.0]]);
+// vật trôi theo dòng sông (lục bình, xuồng)
+const drift = RIVER_FLOAT.map((f) => { const m = M.fromBlender(f.a); if (m) { m.scale.setScalar(f.sc); scene.add(m); } return { ...f, m, ph: f.s * 40 }; }).filter((f) => f.m);
 const paddies = [];
 { // ruộng lúa: nước + bờ + khóm lúa (xanh hoặc chín theo mùa)
   const w = PADDY.x1 - PADDY.x0, h = PADDY.z1 - PADDY.z0, cx = (PADDY.x0 + PADDY.x1) / 2, cz = (PADDY.z0 + PADDY.z1) / 2;
@@ -151,8 +170,6 @@ const fireflies = new THREE.Points(ffGeo, ffMat); fireflies.frustumCulled = fals
 // ---------- Vật tương tác ----------
 const hits = [];
 const addHit = (h) => { scene.add(h); hits.push(h); return h; };
-addHit(M.hit('pond', 0, POND.rx * 2.1, 0.4, POND.rz * 2.1, [POND.x, 0.2, POND.z]));
-addHit(M.hit('pond', 0, 3.4, 1.2, 1.6, [3.2, 0.6, -1.2]));
 
 const HOUSE = new THREE.Vector3(-5.2, 0, -5.2);
 const houseG = new THREE.Group(); houseG.position.copy(HOUSE); houseG.rotation.y = 0.6; scene.add(houseG);
@@ -196,8 +213,6 @@ const mkTrap = () => {
   return { g, stake, trap, ring, bub, hit };
 };
 const rmTrap = (o) => { scene.remove(o.g, o.hit); trapHits.splice(trapHits.indexOf(o.hit), 1); };
-const zone = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.99, 40), new THREE.MeshBasicMaterial({ color: 0x9be8a0, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide }));
-zone.rotation.x = -Math.PI / 2; zone.scale.set(POND.rx, POND.rz, 1); zone.position.set(POND.x, 0.13, POND.z); zone.visible = false; scene.add(zone);
 
 // bóng "!" ổ trứng
 const eggBub = M.bubble('🥚'); eggBub.position.set(COOP.x, 2.8, COOP.z); scene.add(eggBub);
@@ -212,7 +227,7 @@ bobRing.rotation.x = -Math.PI / 2; bobRing.visible = false; scene.add(bobRing);
 let bobOn = false, bobBite = false;
 
 // ---------- Gà vịt (mỗi cá thể một nhóm, màu/cỡ theo gen) ----------
-const yard = { x0: -4.0, x1: 1.2, z0: 5.2, z1: 7.6 }, riverside = { x0: 0.8, x1: 3.6, z0: 1.4, z1: 3.4 };
+const yard = { x0: -4.0, x1: 1.2, z0: 5.2, z1: 7.6 }, riverside = { x0: 3.2, x1: 5.0, z0: 1.8, z1: 4.4 };
 const animals = new Map(), animalHits = [];
 const mkAnimal = (a) => {
   const g = new THREE.Group(), hex = SP[a.sp].hex[colorOf(a.genome)], male = a.sex === 'm';
@@ -274,34 +289,39 @@ const world = {
     eggBub.visible = S.eggs.length >= 1;
   },
   bobber(on, bite = false) {
-    if (on && !bobOn) { const dx = POND.x - P.x, dz = POND.z - P.z, L = Math.hypot(dx, dz) || 1, r = Math.min(3.4, L * 0.85); bobPos.set(P.x + (dx / L) * r, 0.12, P.z + (dz / L) * r); player.rotation.y = Math.atan2(dx, dz); }
+    if (on && !bobOn) { // phao rơi ra giữa dòng, hướng từ chỗ đứng sang tâm sông
+      const r = riverAt(P.x, P.z, kR); let vx = r.cx - P.x, vz = r.cz - P.z, m = Math.hypot(vx, vz);
+      if (m < 0.6) { const q = riverPoint(r.s, kR); vx = q.nx; vz = q.nz; m = 1; }
+      vx /= m; vz /= m; const reach = Math.max(1.4, Math.min(3.8, m - r.half * 0.4)); bobPos.set(P.x + vx * reach, 0.12, P.z + vz * reach); player.rotation.y = Math.atan2(vx, vz);
+    }
     rodM.visible = on; bobOn = on; bobBite = bite; bobber.visible = line.visible = on; bobRing.visible = on;
   },
   zone(v) { zone.visible = v; },
-  shallow(x, z) { const n = ((x - POND.x) / POND.rx) ** 2 + ((z - POND.z) / POND.rz) ** 2; return n <= 0.98 && n >= 0.3; },
+  shallow: (x, z) => shallowAt(x, z, kR),
   dist(x, z) { return Math.hypot(P.x - x, P.z - z); },
   near, approach,
   obj: (id) => OBJS[id], objAvail: (id) => OBJS[id].st === 'full', px: () => P.x, pz: () => P.z, face: (x, z) => { player.rotation.y = Math.atan2(x - P.x, z - P.z); },
-  onBridge() { return !!S.builds.cau && P.x > 4.6 && onDock(P.x, P.z); },
+  onBridge() { return !!S.builds.cau && P.x > 5.9 && onDock(P.x, P.z); },
 };
 
 // ---------- Nhân vật ----------
 const player = M.playerB(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
 const P = player.position;
-const onDock = (x, z) => x > 1.5 && x < (S.builds.cau ? 9.2 : 4.7) && z > -1.9 && z < -0.5;
+const onDock = (x, z) => x > 2.2 && x < (S.builds.cau ? 13.0 : 5.9) && z > -1.9 && z < -0.5; // bến tre, và cầu khỉ nếu đã bắc
 const SOLID = [[HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5], [BENCH.x, BENCH.z, 0.9]];
-const blocked = (x, z) => (inPond(x, z, 0.97) && !onDock(x, z)) || inEll(LAKE, x, z, 0.97) || Math.hypot(x, z) > WALK_R || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
+const inWater = (x, z, sc = 0.97) => { const r = riverAt(x, z, kR); return r.d < r.half * sc; };
+const blocked = (x, z) => (inWater(x, z) && !onDock(x, z)) || inEll(LAKE, x, z, 0.97) || Math.hypot(x, z) > WALK_R || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
 const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4, bench: 2.8, obj: 1.8 };
 const MIND = { trap: 0, coop: 2.0, bed: 1.4, stall: 2.0, house: 2.8, bench: 1.7, obj: 0.9 };
 const objPos = (kind, idx) => kind === 'trap' ? [S.traps[idx].x, S.traps[idx].z] : kind === 'coop' ? [COOP.x, COOP.z] : kind === 'bed' ? BED_POS[idx] : kind === 'stall' ? [4.2, 6.2] : kind === 'bench' ? [BENCH.x, BENCH.z] : kind === 'obj' ? [OBJS[idx].x, OBJS[idx].z] : [HOUSE.x, HOUSE.z];
 let go = null; // {x, z, kind, idx, stuck}
 function near(kind, idx = 0) {
-  if (kind === 'pond') return inPond(P.x, P.z, 1.35);
+  if (kind === 'river') { const r = riverAt(P.x, P.z, kR); return r.d - r.half < 2.4 || onDock(P.x, P.z); }
   const [x, z] = objPos(kind, idx); return Math.hypot(P.x - x, P.z - z) <= REACH[kind];
 }
 function approach(kind, idx = 0) {
   if (near(kind, idx)) { go = null; return game.interact(kind, idx); }
-  if (kind === 'pond') { go = { x: 3.0, z: -1.2, kind, idx, stuck: 0 }; return; }
+  if (kind === 'river') { const r = riverAt(P.x, P.z, kR), m = Math.hypot(P.x - r.cx, P.z - r.cz) || 1, e = r.half + 1.0; go = { x: r.cx + ((P.x - r.cx) / m) * e, z: r.cz + ((P.z - r.cz) / m) * e, kind, idx, stuck: 0 }; return; } // ra mép bờ gần nhất
   const [ox, oz] = objPos(kind, idx), dx = P.x - ox, dz = P.z - oz, L = Math.hypot(dx, dz) || 1;
   for (let d = MIND[kind]; d < 16; d += 0.4) {
     const x = ox + (dx / L) * d, z = oz + (dz / L) * d;
@@ -341,7 +361,7 @@ const pickAction = () => {
   add('coop', 0, COOP.x, COOP.z, '🐔', 'Chuồng'); add('stall', 0, 4.2, 6.2, '🧺', 'Chợ'); add('house', 0, HOUSE.x, HOUSE.z, '🏠', 'Nhà');
   if (S.builds.ban) add('bench', 0, BENCH.x, BENCH.z, '🔨', 'Bàn thợ');
   for (const o of OBJS) { if (o.st !== 'full' || Math.hypot(P.x - o.x, P.z - o.z) > 2.2 || !near('obj', o.id)) continue; const d = OBJ[o.kind], lack = d.tool && !S.tools[d.tool]; c.push({ kind: 'obj', idx: o.id, icon: lack ? '🔒' : d.icon, label: lack ? `Cần ${TOOLS[d.tool].name}` : d.verb, d: Math.hypot(P.x - o.x, P.z - o.z) - 0.8 }); }
-  if (near('pond')) c.push({ kind: 'pond', idx: 0, icon: '🎣', label: 'Câu cá', d: Math.hypot(P.x - POND.x, P.z - POND.z) - 3.5 });
+  if (near('river')) { const r = riverAt(P.x, P.z, kR); c.push({ kind: 'river', idx: 0, icon: '🎣', label: 'Câu cá', d: r.d - r.half + 0.5 }); }
   c.sort((a, b) => a.d - b.d);
   game.setAction(!game.isBusy() && !go?.kind ? c[0] || null : null);
 };
@@ -389,14 +409,14 @@ canvas.addEventListener('pointerup', (e) => {
   if (r && r.object.userData.kind === 'animal') return game.interact('animal', r.object.userData.idx);
   if (r) return approach(r.object.userData.kind, r.object.userData.idx);
   const po = pickObj(e.clientX, e.clientY); if (po) return approach('obj', po.id);
+  if (ray.ray.intersectPlane(gp, gv) && inWater(gv.x, gv.z, 1.05)) return approach('river', 0); // chạm xuống sông: ra bờ rồi câu
   if (ray.ray.intersectPlane(gp, gv) && !blocked(gv.x, gv.z)) go = { x: gv.x, z: gv.z, kind: null, stuck: 0 };
 });
 
 // ---------- Lấp lánh mặt nước + bướm ----------
-const SPK = Array.from({ length: 12 }, (_, i) => {
+const SPK = Array.from({ length: 14 }, () => {
   const m = new THREE.Mesh(new THREE.CircleGeometry(0.2, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
-  m.rotation.x = -Math.PI / 2; const a = rnd() * 6.283, r = Math.sqrt(0.35 + rnd() * 0.6);
-  m.position.set(POND.x + Math.cos(a) * POND.rx * r, 0.11, POND.z + Math.sin(a) * POND.rz * r); m.userData.ph = rnd() * 6.283; scene.add(m); return m;
+  m.rotation.x = -Math.PI / 2; m.userData = { ph: rnd() * 6.283, s: 0.05 + rnd() * 0.9, off: (rnd() - 0.5) * 1.6 }; scene.add(m); return m;
 });
 const BUT = Array.from({ length: 5 }, (_, i) => {
   const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: [0xffd23f, 0xf26b8a, 0xffffff, 0xb487f0, 0xff9f43][i], side: THREE.DoubleSide });
@@ -412,12 +432,10 @@ const dayness = (f) => (f < 0.6 ? THREE.MathUtils.smoothstep(Math.sin((Math.PI *
 const TINT = [[0xd8b058, 0.24], [0x7fcf5a, 0.08], [0x2f8f50, 0.12], [0x5fa6a0, 0.1]].map(([c, o]) => ({ c: new THREE.Color(c), o }));
 const tmpC = new THREE.Color(), GRAY = new THREE.Color(0x9aa7b0), FOG = new THREE.Color(0xe4ecf0);
 let rainK = 0, windK = 0;
-const BLUE = new THREE.Color(0x4aa8d8), SILT = new THREE.Color(0x9a9a60);
+const SILT = new THREE.Color(0xb8b078);
 const clock = new THREE.Clock();
-let first = true, nextSlow = 0, nextClock = 0;
-let fpsN = 0;
+let first = true, nextSlow = 0, nextClock = 0, nextZone = 0;
 const loop = () => {
-  fpsN++;
   const dt = Math.min(0.05, clock.getDelta()), now = clock.elapsedTime;
   if (document.hidden) return requestAnimationFrame(loop);
   const f = dayFrac(), d = dayness(f), wx = S.world.weather, nf = stepF(S), ph = phaseAt(nf), lvl = levelAt(nf);
@@ -428,10 +446,11 @@ const loop = () => {
     nextClock = now + 2; const W = WEATHER.find((x) => x.id === wx) || WEATHER[0], t = d > 0.75 ? '☀️ ban ngày' : f < 0.6 ? '🌅 sáng/chiều' : '🌙 ban đêm';
     document.querySelector('#clock').innerHTML = `<b>${PHASES[ph].icon} ${PHASES[ph].name}</b><small>Năm ${Math.floor(nf / YEAR_STEPS) + 1} · ${W.icon} ${W.name} · ${t}</small>`;
   }
-  // ao co giãn theo mực nước, màu đất theo mùa
-  const pk = 0.75 + 0.35 * lvl; POND.rx = POND0.rx * pk; POND.rz = POND0.rz * pk; pond.scale.set(pk, 1, pk); zone.scale.set(POND.rx, POND.rz, 1);
+  // sông co giãn theo mực nước (dựng lại dải khi đổi đủ nhiều), màu đất theo mùa
+  { const nk = riverK(lvl); if (Math.abs(nk - kR) > 0.004) { kR = nk; shapeRiver(); } }
+  riverTex.offset.y -= dt * 0.35; // dòng chảy
   { const fr = (nf / 24) % 1, a = TINT[ph], b = TINT[(ph + 1) % 4], k = THREE.MathUtils.smoothstep(fr, 0.8, 1); tint.material.color.copy(a.c).lerp(b.c, k); tint.material.opacity = a.o + (b.o - a.o) * k; }
-  pond.userData.water.material.color.copy(BLUE).lerp(SILT, ph === 3 ? 0.35 : ph === 2 ? 0.15 : 0); // nước phù sa mùa lũ
+  waterMat.color.setRGB(1, 1, 1).lerp(SILT, ph === 3 ? 0.55 : ph === 2 ? 0.25 : 0); // nước phù sa mùa lũ
   rainMat.opacity = rainK * 0.75; rain.visible = rainK > 0.02;
   if (rain.visible) { rain.position.set(CAMT.x, 0, CAMT.z); for (let i = 0; i < RAIN_N; i++) { rainPos[i * 3 + 1] -= dt * 14; if (rainPos[i * 3 + 1] < 0) rainPos[i * 3 + 1] = 8 + rnd() * 2; } rainGeo.attributes.position.needsUpdate = true; }
   const dark = 1 - rainK * 0.35;
@@ -440,15 +459,17 @@ const loop = () => {
   ffMat.opacity = Math.max(0, 1 - d * 1.6);
   if (ffMat.opacity > 0.01) for (let i = 0; i < FF; i++) { const s = ffSeed[i]; ffPos[i * 3] = s[0] + Math.sin(now * 0.5 + s[3]) * 0.8; ffPos[i * 3 + 1] = s[1] + Math.sin(now * 0.9 + s[3] * 2) * 0.3; ffPos[i * 3 + 2] = s[2] + Math.cos(now * 0.4 + s[3]) * 0.8; ffGeo.attributes.position.needsUpdate = true; }
   clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05) * (1 + windK * 5); if (c.position.x > 48) c.position.x = -48; });
-  pond.userData.water.material.emissive.setScalar(0.04 + 0.02 * Math.sin(now * 1.5));
+  waterMat.emissive.setScalar(0.04 + 0.02 * Math.sin(now * 1.5));
+  lakeFloat.forEach((f) => { f.m.position.y = 0.11 + Math.sin(now * 1.2 + f.ph) * 0.02; });
+  for (const f of drift) { f.s += f.v * dt; if (f.s > 0.97) f.s = 0.03; const q = riverPoint(f.s, kR); f.m.position.set(q.x + q.nx * f.off * q.half, 0.07 + Math.sin(now * 1.3 + f.ph) * 0.015, q.z + q.nz * f.off * q.half); f.m.rotation.y = f.a === 'xuong' ? q.ang - Math.PI / 2 : f.m.rotation.y + dt * 0.05; }
+  if (zone.visible && now > nextZone) { nextZone = now + 1; shapeRiver(); }
 
-  SPK.forEach((m) => { const k = Math.max(0, Math.sin(now * 1.6 + m.userData.ph)); m.material.opacity = k ** 6 * 0.9 * d; m.scale.setScalar(0.5 + k); m.rotation.z = now; });
+  SPK.forEach((m) => { const u = m.userData, q = riverPoint(u.s, kR); m.position.set(q.x + q.nx * u.off * q.half, 0.11, q.z + q.nz * u.off * q.half); const k = Math.max(0, Math.sin(now * 1.6 + u.ph)); m.material.opacity = k ** 6 * 0.9 * d; m.scale.setScalar(0.5 + k); m.rotation.z = now; });
   BUT.forEach((g, i) => { const u = g.userData; g.visible = d > 0.55; if (!g.visible) return; const t = now * 0.5 + u.ph;
     g.position.set(u.cx + Math.cos(t) * u.r * 1.6, 0.9 + Math.sin(t * 2.3) * 0.25, u.cz + Math.sin(t * 1.3) * u.r * 1.6); g.rotation.y = -t * 1.3 + 1.2;
     const f = Math.sin(now * 22 + i) * 0.9; u.wl.rotation.z = f; u.wr.rotation.z = -f; });
   decorAnim.forEach((m, i) => { m.position.y += (m.userData.base ??= m.position.y) - m.position.y + Math.sin(now * 1.3 + i) * (m.userData.base > 0 ? 0.015 : 0.01); if (m.userData.base === 0) m.rotation.x = Math.sin(now * 0.9 + i) * 0.02; });
-  floaters.forEach((f) => { f.m.position.y = 0.11 + Math.sin(now * 1.2 + f.ph) * 0.02; f.m.rotation.y += dt * 0.05; });
-  // gà vịt: vịt chạy đồng ra bờ ao mùa nước nổi ban ngày; con ốm đi chậm
+  // gà vịt: vịt chạy đồng ra bờ sông mùa nước nổi ban ngày; con ốm đi chậm
   for (const a of animals.values()) {
     const u = a.userData; u.bob += dt * 8;
     const dx = u.tx - a.position.x, dz = u.tz - a.position.z, dist = Math.hypot(dx, dz), run = u.sp === 'duck' && ph === 3 && d > 0.4, zn = run ? riverside : yard;
@@ -491,6 +512,6 @@ if (!S.stats.picked && !S.stats.fish && !S.builds.ban) setTimeout(() => game.toa
 requestAnimationFrame(loop);
 addEventListener('pagehide', () => { tick(); save(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); world.refresh(); } });
-window.__game = { S, world, game, P, objs: () => OBJS, proj: (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, az: () => az, go: () => go, fps: () => fpsN };
+window.__game = { S, world, game, P, objs: () => OBJS, proj: (x, z) => { const v = new THREE.Vector3(x, 0, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; }, az: () => az, go: () => go };
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});

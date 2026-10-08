@@ -47,11 +47,11 @@ export const COOP_CAP = [
 export const ANIMAL = { chicken: 20, duck: 25 };
 
 export const QUESTS = [
-  { text: 'Câu con cá đầu tiên (chạm ao)', ok: (s) => s.stats.fish >= 1, reward: 20 },
+  { text: 'Câu con cá đầu tiên (chạm xuống sông)', ok: (s) => s.stats.fish >= 1, reward: 20 },
   { text: 'Bán cá ở quầy chợ', ok: (s) => s.stats.sold >= 1, reward: 20 },
   { text: 'Gieo một luống rau', ok: (s) => s.stats.planted >= 1, reward: 20 },
   { text: 'Rải thóc cho gà vịt (chạm chuồng)', ok: (s) => s.stats.fed >= 1, reward: 20 },
-  { text: 'Đặt lờ đầu tiên bên ao', ok: (s) => s.stats.trapsSet >= 1, reward: 30 },
+  { text: 'Đặt lờ đầu tiên ở nước nông ven sông', ok: (s) => s.stats.trapsSet >= 1, reward: 30 },
   { text: 'Thu hoạch 3 cây rau', ok: (s) => s.stats.harvested >= 3, reward: 40 },
   { text: 'Nâng cấp cần câu lên cấp 2', ok: (s) => s.rod >= 2, reward: 50 },
   { text: 'Sửa nhà lên cấp 2', ok: (s) => s.house >= 2, reward: 100 },
@@ -77,7 +77,7 @@ export const PHASES = [
   { name: 'Mùa khô', icon: '☀️', level: 0.2, tip: 'Gió chướng, nắng gắt, mặn xâm nhập: cá ít, cần tưới và lu nước.' },
   { name: 'Đầu mưa', icon: '🌦️', level: 0.45, tip: 'Mưa chiều tự tưới vườn, cỏ rơm và ốc bắt đầu nhiều.' },
   { name: 'Mùa mưa', icon: '🌧️', level: 0.7, tip: 'Mưa nhiều, gà vịt dễ ốm: nên có chuồng tre lá.' },
-  { name: 'Nước nổi', icon: '🌊', level: 1, tip: 'Nước dâng ngập vườn thấp. Cá linh, điên điển, bông súng về; vịt chạy đồng.' },
+  { name: 'Nước nổi', icon: '🌊', level: 1, tip: 'Sông dâng, nước ngập vườn thấp. Cá linh, điên điển, bông súng về; vịt chạy đồng.' },
 ];
 export const WEATHER = [
   { id: 'nang', name: 'Nắng', icon: '☀️' }, { id: 'may', name: 'Nhiều mây', icon: '⛅' }, { id: 'mua', name: 'Mưa chiều', icon: '🌧️' },
@@ -106,7 +106,7 @@ export const BUILD = {
   oap: { name: 'Ổ ấp rơm', icon: '🪺', desc: 'Trứng có phôi nở 100% (không có ổ: 60%)', cost: { rom: 8 }, coins: 10 },
   lu: { name: 'Lu nước mưa', icon: '🏺', desc: 'Trữ nước mưa tưới vườn mùa khô (6 lần/lu), tối đa 2 lu', cost: { set: 4, tre: 2, da: 2 }, coins: 15 },
   phan: { name: 'Đống ủ phân', icon: '♻️', desc: 'Đổi 2 phân thành 1 phân ủ mỗi 2 ngày, bón cho cây lớn nhanh x1,5', cost: { rom: 6, tre: 4, go: 2 }, coins: 10 },
-  cau: { name: 'Cầu khỉ', icon: '🌉', desc: 'Đứng ra giữa ao: cá hiếm dễ cắn hơn', cost: { tre: 10, go: 8, soi: 4 }, coins: 25 },
+  cau: { name: 'Cầu khỉ', icon: '🌉', desc: 'Bắc qua sông sang bờ đông (rừng dừa tre, đồng lúa); đứng giữa sông cá hiếm dễ cắn hơn', cost: { tre: 12, go: 8, soi: 5 }, coins: 30 },
   nen: { name: 'Nền cao (mỗi luống thấp)', icon: '⛰️', desc: 'Chống ngập mùa nước nổi cho luống 4–6', cost: { set: 4, rom: 4, da: 3 }, coins: 15 },
 };
 export const LU_CAP = 6;
@@ -118,6 +118,7 @@ QUESTS.unshift(
   { text: 'Chế một công cụ ở bàn thợ', ok: (s) => s.stats.crafted >= 1, reward: 40 },
 );
 QUESTS.push(
+  { text: 'Bắc cầu khỉ qua sông, sang bờ đông', ok: (s) => !!s.builds.cau, reward: 80 },
   { text: 'Chặt một cây bằng rìu (🪓)', ok: (s) => s.stats.chopped >= 1, reward: 30 },
   { text: 'Xây một công trình ở 🏠 Nhà → Xây dựng', ok: (s) => s.stats.built >= 1, reward: 40 },
   { text: 'Ấp nở con gà/vịt đầu tiên', ok: (s) => s.stats.hatched >= 1, reward: 60 },
@@ -157,24 +158,32 @@ export const OBJ = {
 };
 export const ZONES = [
   { id: 'lang', name: 'Làng', x: 0, z: 2, r: 15, mix: [['branch', 7], ['pebble', 6], ['weed', 9], ['grass', 6], ['berry', 3], ['tree', 4], ['rock', 2], ['bamboo', 3]] },
-  { id: 'rung', name: 'Rừng dừa tre', x: 19, z: -19, r: 12, mix: [['palm', 14], ['bamboo', 16], ['tree', 12], ['grass', 6], ['berry', 4], ['branch', 5]] },
+  { id: 'rung', name: 'Rừng dừa tre', x: 29, z: -9, r: 10, mix: [['palm', 14], ['bamboo', 16], ['tree', 12], ['grass', 6], ['berry', 4], ['branch', 5]] },
   { id: 'bai', name: 'Bãi bồi', x: 5, z: 23, r: 11, mix: [['clay', 12], ['grass', 10], ['berry', 5], ['weed', 6], ['pebble', 4]] },
   { id: 'rach', name: 'Bờ rạch', x: -23, z: 3, r: 11, mix: [['palm', 5], ['grass', 6], ['weed', 5], ['tree', 3], ['ban', 5], ['nipa', 5]] },
-  { id: 'dong', name: 'Đồng lúa', x: 23, z: 9, r: 10, mix: [['grass', 20], ['berry', 5], ['weed', 8]] },
+  { id: 'dong', name: 'Đồng lúa', x: 25, z: 8, r: 9, mix: [['grass', 20], ['berry', 5], ['weed', 8]] },
   { id: 'nui', name: 'Núi đá', x: -5, z: -23, r: 11, mix: [['rock', 14], ['tree', 8], ['berry', 5], ['pebble', 6], ['branch', 4]] },
 ];
-// vật thể ven nước (quanh ao làng và rạch)
-export const WATER_MIX = { pond: [['snail', 6], ['reed', 8], ['nipa', 4], ['clay', 4], ['dien', 5], ['lily', 5]], lake: [['snail', 8], ['reed', 10], ['nipa', 8], ['ban', 4], ['clay', 8], ['dien', 6], ['lily', 6]] };
+// vật thể ven nước (dọc sông và quanh rạch)
+export const WATER_MIX = { river: [['snail', 14], ['reed', 18], ['nipa', 12], ['clay', 8], ['dien', 10], ['lily', 10], ['ban', 5]], lake: [['snail', 8], ['reed', 10], ['nipa', 8], ['ban', 4], ['clay', 8], ['dien', 6], ['lily', 6]] };
 export const START_RES = { go: 4, da: 3, soi: 3, tre: 4 };
 
-// Đồ trang trí dựng bằng Blender (không khai thác được); r = bán kính tránh vật thể khác
+// Sông Mê Kông thu nhỏ: đường tâm Catmull-Rom qua các điểm (x, z), chảy từ đông bắc xuống đông nam. half = nửa bề rộng ở mực nước trung bình.
+export const RIVER = { pts: [[34, -26], [24, -20], [16, -12], [10, -5], [8.5, 1], [9, 7], [13, 13], [20, 18], [30, 22], [44, 26]], half: 3.3, flow: 0.9 };
+export const riverK = (level) => 0.75 + 0.35 * level; // sông co giãn theo mực nước
+// Đồ trang trí dựng bằng Blender (không khai thác được); r = bán kính tránh vật thể khác. riv: [vị trí dọc sông 0..1, lệch ngang theo nửa bề rộng]
 export const DECOR = [
-  { a: 'xuong', x: 2.9, z: -3.9, rot: 0.55, y: 0.07, r: 2.0 },
+  { a: 'xuong', riv: [0.42, 1.12], y: 0.07, r: 2.2 },
   { a: 'ghe_cho', x: -23.5, z: 3.2, rot: 0.25, y: 0.07, r: 3.0 },
-  { a: 'trau', x: 16, z: 2, rot: 1.2, y: 0, r: 1.6, anim: true },
+  { a: 'trau', x: 18, z: 3, rot: 1.2, y: 0, r: 1.6, anim: true },
   { a: 'trau', x: -18.5, z: 9.5, rot: -0.8, y: 0, r: 1.6, anim: true },
-  { a: 'choi', x: 21.5, z: 4.5, rot: 0.5, y: 0, r: 1.8 },
+  { a: 'choi', x: 23.5, z: 5.5, rot: 0.5, y: 0, r: 1.8 },
   { a: 'gian_bau', x: -10.4, z: -2.0, rot: 1.5708, y: 0, r: 1.8 },
   { a: 'vong', x: -8.2, z: -8.6, rot: 0.4, y: 0, r: 1.6 },
 ];
-export const PADDY = { x0: 16.5, x1: 29.5, z0: 13, z1: 23 }; // ruộng lúa ở Đồng lúa
+// vật trôi theo dòng: s = vị trí dọc sông, off = lệch ngang, v = tốc độ (phần sông mỗi giây)
+export const RIVER_FLOAT = [
+  { a: 'xuong', s: 0.18, off: 0.15, v: 0.0045, sc: 1.0 },
+  ...[[0.1, -0.45, 1.1], [0.27, 0.4, 0.9], [0.36, -0.2, 1.2], [0.5, 0.5, 1.0], [0.6, -0.5, 0.85], [0.72, 0.25, 1.1], [0.85, -0.3, 1.0]].map(([s, off, sc]) => ({ a: 'luc_binh', s, off, v: 0.0022, sc })),
+];
+export const PADDY = { x0: 17, x1: 30, z0: 3, z1: 12 }; // ruộng lúa bên bờ đông

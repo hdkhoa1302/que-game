@@ -1,24 +1,74 @@
-// Vật thể khai thác trong thế giới: sinh xác định, kiểm tra còn dùng được. Thuần, không đụng DOM.
+// Địa lý và vật thể khai thác: sông, hồ, sinh vật thể xác định, kiểm tra còn dùng được. Thuần, không đụng DOM.
 import { mulberry32 } from './genes.js';
-import { OBJ, ZONES, WATER_MIX, WALK_R, DECOR, PADDY } from './data.js';
+import { OBJ, ZONES, WATER_MIX, WALK_R, DECOR, PADDY, RIVER } from './data.js';
 
-export const POND = { x: 6.2, z: -1.2, rx: 4.3, rz: 3.2 }, LAKE = { x: -23, z: 3, rx: 5.5, rz: 3 };
+export const LAKE = { x: -23, z: 3, rx: 5.5, rz: 3 };
 export const inEll = (e, x, z, k = 1) => ((x - e.x) / (e.rx * k)) ** 2 + ((z - e.z) / (e.rz * k)) ** 2 < 1;
-// khu nhà, vườn, chuồng, chợ: không rải vật thể
-export const keepOut = (x, z) => DECOR.some((d) => Math.hypot(d.x - x, d.z - z) < d.r) || (x > PADDY.x0 - 1 && x < PADDY.x1 + 1 && z > PADDY.z0 - 1 && z < PADDY.z1 + 1) || inEll(POND, x, z, 1.3) || inEll(LAKE, x, z, 1.25) || (x > -9 && x < 3 && z > -4.6 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.8) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 8 && z > 3.6 && z < 8.2) || (x > 0 && x < 5 && z > -2.2 && z < 0.6);
+
+// ---- sông: đường tâm Catmull-Rom lấy mẫu N điểm ----
+const N = 170;
+const cr = (a, b, c, d, t) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+export const RS = (() => {
+  const P = RIVER.pts, segs = P.length - 1, out = [];
+  for (let i = 0; i < N; i++) {
+    const u = (i / (N - 1)) * segs, k = Math.min(segs - 1, Math.floor(u)), t = u - k, p0 = P[Math.max(0, k - 1)], p1 = P[k], p2 = P[k + 1], p3 = P[Math.min(segs, k + 2)];
+    out.push({ x: cr(p0[0], p1[0], p2[0], p3[0], t), z: cr(p0[1], p1[1], p2[1], p3[1], t) });
+  }
+  let L = 0;
+  out.forEach((p, i) => {
+    const a = out[Math.max(0, i - 1)], b = out[Math.min(N - 1, i + 1)], tx = b.x - a.x, tz = b.z - a.z, m = Math.hypot(tx, tz) || 1;
+    if (i) L += Math.hypot(p.x - out[i - 1].x, p.z - out[i - 1].z);
+    Object.assign(p, { tx: tx / m, tz: tz / m, nx: -tz / m, nz: tx / m, L, half: RIVER.half * (1 + 0.16 * Math.sin(i * 0.09 + 1) + 0.08 * Math.sin(i * 0.23)) });
+  });
+  return out;
+})();
+
+// điểm trên đường tâm tại s ∈ [0,1]: toạ độ, pháp tuyến, nửa bề rộng (đã nhân hệ số mực nước k) và góc dòng chảy
+export const riverPoint = (s, k = 1) => {
+  const f = Math.min(Math.max(s, 0), 1) * (N - 1), i = Math.min(N - 2, Math.floor(f)), t = f - i, a = RS[i], b = RS[i + 1], l = (u, v) => u + (v - u) * t;
+  return { x: l(a.x, b.x), z: l(a.z, b.z), nx: l(a.nx, b.nx), nz: l(a.nz, b.nz), half: l(a.half, b.half) * k, ang: Math.atan2(l(a.tx, b.tx), l(a.tz, b.tz)) };
+};
+// điểm gần nhất trên đường tâm: khoảng cách d, nửa bề rộng tại đó, s, chân vuông góc (cx, cz)
+export const riverAt = (x, z, k = 1) => {
+  let best = null;
+  for (let i = 0; i < N - 1; i++) {
+    const a = RS[i], b = RS[i + 1], dx = b.x - a.x, dz = b.z - a.z, t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz))), cx = a.x + dx * t, cz = a.z + dz * t, d = Math.hypot(x - cx, z - cz);
+    if (!best || d < best.d) best = { d, cx, cz, s: (i + t) / (N - 1), half: (a.half + (b.half - a.half) * t) * k };
+  }
+  return best;
+};
+export const shallowAt = (x, z, k = 1) => { const r = riverAt(x, z, k), f = r.d / r.half; return f >= 0.5 && f <= 0.97; }; // nước nông ven bờ để đặt lờ
+// kéo một điểm (vd lờ cũ trong ao) về nước nông gần nhất của sông
+export const snapToShallow = (x, z, k = 1) => {
+  const r = riverAt(x, z, k); let ux = x - r.cx, uz = z - r.cz; const m = Math.hypot(ux, uz);
+  if (m < 1e-3) { const p = riverPoint(r.s, k); ux = p.nx; uz = p.nz; } else { ux /= m; uz /= m; }
+  return [r.cx + ux * r.half * 0.78, r.cz + uz * r.half * 0.78];
+};
+
+// đồ trang trí đã đổi toạ độ theo sông (riv) sang x, z, rot
+export const DECOR_R = DECOR.map((d) => {
+  if (!d.riv) return d;
+  const p = riverPoint(d.riv[0], 1); return { ...d, x: p.x + p.nx * d.riv[1] * p.half, z: p.z + p.nz * d.riv[1] * p.half, rot: p.ang - Math.PI / 2 };
+});
+
+// khu nhà, vườn, chuồng, chợ, bến: không rải vật thể; bờ sông thì chỉ vật ven nước được ở đó
+export const keepOut = (x, z, wet = false) => DECOR_R.some((d) => Math.hypot(d.x - x, d.z - z) < d.r) || (x > PADDY.x0 - 1 && x < PADDY.x1 + 1 && z > PADDY.z0 - 1 && z < PADDY.z1 + 1) || inEll(LAKE, x, z, 1.25) || (x > -9 && x < 3 && z > -4.6 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.8) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 8 && z > 3.6 && z < 8.2) || (x > 1 && x < 7.5 && z > -2.4 && z < 0.8) || (() => { const r = riverAt(x, z, 1.2); return wet ? r.d < r.half * 1.12 : r.d < r.half * 1.2 + 0.7; })();
 
 export const genObjects = () => {
   const rng = mulberry32(20241008), list = [];
-  const add = (kind, x, z, gap = 1.35) => {
-    if (Math.hypot(x, z) > WALK_R - 1 || keepOut(x, z) || list.some((o) => Math.hypot(o.x - x, o.z - z) < gap)) return false;
+  const add = (kind, x, z, gap = 1.35, wet = false) => {
+    if (Math.hypot(x, z) > WALK_R - 1 || keepOut(x, z, wet) || list.some((o) => Math.hypot(o.x - x, o.z - z) < gap)) return false;
     list.push({ id: list.length, kind, x, z, rot: rng() * 6.283, s: 0.85 + rng() * 0.4 });
     return true;
   };
   for (const zn of ZONES) for (const [kind, n] of zn.mix) {
     for (let k = 0, got = 0; got < n && k < n * 60; k++) { const a = rng() * 6.283, r = Math.sqrt(rng()) * zn.r; if (add(kind, zn.x + Math.cos(a) * r, zn.z + Math.sin(a) * r)) got++; }
   }
-  for (const [name, e] of [['pond', POND], ['lake', LAKE]]) for (const [kind, n] of WATER_MIX[name]) {
-    for (let k = 0, got = 0; got < n && k < n * 60; k++) { const a = rng() * 6.283, f = 1.34 + rng() * 0.3, x = e.x + Math.cos(a) * e.rx * f, z = e.z + Math.sin(a) * e.rz * f; if (!(x < 3.6 && Math.abs(z + 1.2) < 1.6 && e === POND) && add(kind, x, z, 0.8)) got++; }
+  for (const [kind, n] of WATER_MIX.river) { // dọc hai bờ sông
+    for (let k = 0, got = 0; got < n && k < n * 80; k++) { const p = riverPoint(0.03 + rng() * 0.9, 1.15), side = rng() < 0.5 ? -1 : 1, f = 1.08 + rng() * 0.4; if (add(kind, p.x + p.nx * side * p.half * f, p.z + p.nz * side * p.half * f, 0.8, true)) got++; }
+  }
+  for (const [kind, n] of WATER_MIX.lake) { // quanh rạch
+    for (let k = 0, got = 0; got < n && k < n * 60; k++) { const a = rng() * 6.283, f = 1.34 + rng() * 0.3; if (add(kind, LAKE.x + Math.cos(a) * LAKE.rx * f, LAKE.z + Math.sin(a) * LAKE.rz * f, 0.8, true)) got++; }
   }
   return list;
 };
@@ -30,8 +80,10 @@ export const objAvail = (S, o, day, phase) => {
   return !(S.obj[o.id] > day);
 };
 export const zoneAt = (x, z) => {
+  if (inEll(LAKE, x, z, 2)) return 'Bờ rạch';
+  const r = riverAt(x, z, 1);
+  if (r.d < r.half * 1.5) return 'Ven sông';
   let best = null, bd = 1e9;
   for (const zn of ZONES) { const d = Math.hypot(x - zn.x, z - zn.z) - zn.r; if (d < bd) { bd = d; best = zn; } }
-  if (inEll(LAKE, x, z, 2)) return 'Bờ rạch';
   return bd < 3 ? best.name : 'Đồng hoang';
 };

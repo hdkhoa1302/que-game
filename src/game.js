@@ -1,6 +1,6 @@
-import { S, save, tick, add, stageOf, bedReady, trapLeft, trapState, nestCap, questDone, reset } from './state.js';
+import { S, save, tick, add, bedReady, trapLeft, trapState, nestCap, questDone, reset } from './state.js';
 import { FISH, CROPS, EGGS, GRAIN, BAIT, TRAP_TIMES, UP, COOP_CAP, ANIMAL, QUESTS, priceMul, MIN, PHASES, WEATHER, SP, RES, RES_CAP, BUILD, LU_CAP, TRAP_MOD, TOOLS, OBJ, TIER_NAME, TIME_MUL, YIELD_MUL } from './data.js';
-import { phaseAt, dayAt, lifeStage, ofSp, capOf, hatchLimit, addAnimal, dexAll, isFlooded, levelAt, stepF } from './sim.js';
+import { phaseAt, dayAt, lifeStage, capOf, hatchLimit, addAnimal, dexAll, isFlooded } from './sim.js';
 import { founder, mulberry32, avg, colorOf, sizeGroup } from './genes.js';
 import { sfx, buzz, unlock } from './sfx.js';
 
@@ -63,7 +63,7 @@ export const after = () => {
   if (q) { toast(`✅ ${q.text}  +${coin(q.reward)}`, 3200); sfx.ok(); }
   if (S.house >= 3 && !S.won) {
     S.won = true;
-    open(() => `<h2>🏡 Về quê trọn vẹn!</h2><p>Căn nhà đã sửa xong, ao có cá, vườn có rau, chuồng có gà vịt. Bạn đã bỏ phố về quê thành công.</p><button class="btn big" data-a="close">Tiếp tục làm ăn</button>`);
+    open(() => `<h2>🏡 Về quê trọn vẹn!</h2><p>Căn nhà đã sửa xong, sông có cá, vườn có rau, chuồng có gà vịt. Bạn đã bỏ phố về quê thành công.</p><button class="btn big" data-a="close">Tiếp tục làm ăn</button>`);
     sfx.ok();
   }
   hud(); save(); world?.refresh(); draw();
@@ -152,7 +152,7 @@ const bedPanel = (i) => () => {
   const wet = b.waterUntil > Date.now(), pct = (b.progress / c.grow) * 100;
   const left = (c.grow - b.progress) / (wet ? 1 : 0.25);
   return `<h2>${c.icon} ${c.name}</h2><div class="bar"><i style="width:${pct}%"></i></div>
-  <p>${wet ? `💧 Đang đủ nước. Còn khoảng ${fmt(left)}.` : `🏜️ Đất khô, cây lớn chậm. Tưới để nhanh gấp 4 lần.`}${b.fert ? ' 🪱 Đã bón phân ủ (lớn x1,5).' : ''}${phaseAt(S.world.step) === 0 ? ` Mùa khô: ao cạn, cần nước lu (${S.lu}/${LU_CAP * (S.builds.lu || 0)}).` : ''}</p>
+  <p>${wet ? `💧 Đang đủ nước. Còn khoảng ${fmt(left)}.` : `🏜️ Đất khô, cây lớn chậm. Tưới để nhanh gấp 4 lần.`}${b.fert ? ' 🪱 Đã bón phân ủ (lớn x1,5).' : ''}${phaseAt(S.world.step) === 0 ? ` Mùa khô: sông cạn, cần nước lu (${S.lu}/${LU_CAP * (S.builds.lu || 0)}).` : ''}</p>
   <button class="btn big" data-a="water" data-v="${i}">💧 Tưới nước</button>
   ${!b.fert && S.res.phanu ? `<p><button class="btn big gold" data-a="fert" data-v="${i}">🪱 Bón phân ủ (có ${S.res.phanu})</button></p>` : ''}
   <p style="text-align:center"><button class="btn gray" data-a="pull" data-v="${i}">Nhổ bỏ</button></p>`;
@@ -186,7 +186,7 @@ const house = () => {
   return `<h2>🏠 Nhà quê</h2><p>${PHASES[ph].icon} <b>${PHASES[ph].name}</b> · ${W.icon} ${W.name}. ${PHASES[ph].tip}</p><p>${q ? `<b>Nhiệm vụ:</b> ${q.text} (thưởng ${coin(q.reward)})` : 'Bạn đã hoàn thành mọi nhiệm vụ!'}</p>` +
     upRow('🏠', 'Sửa nhà', 'Nhà đẹp hơn, mục tiêu cuối game', S.house, 3, UP.house[S.house] ?? 0, 'house') +
     upRow('🎣', 'Cần câu', 'Thanh kéo to hơn, dễ ra cá hiếm', S.rod, 3, UP.rod[S.rod] ?? 0, 'rod') +
-    upRow('🪤', 'Thêm lờ', 'Thêm một chỗ đặt lờ bên ao', S.trapsN, 4, UP.trap[S.trapsN] ?? 0, 'trap') +
+    upRow('🪤', 'Thêm lờ', 'Thêm một chỗ đặt lờ ven sông', S.trapsN, 4, UP.trap[S.trapsN] ?? 0, 'trap') +
     upRow('🌱', 'Thêm luống rau', 'Thêm một luống trong vườn', S.bedsN, 6, UP.bed[S.bedsN] ?? 0, 'bed') +
     upRow('🐔', 'Mở rộng chuồng', 'Nuôi được nhiều gà vịt hơn', S.coop, 3, UP.coop[S.coop] ?? 0, 'coop') +
     `<div class="row"><div class="ic">🔨</div><div class="tx">Xây dựng<small>Bàn thợ, chuồng tre lá, ổ ấp, lu nước, ủ phân, cầu khỉ, nền cao</small></div><button class="btn gold" data-a="openbuild">Mở</button></div>` +
@@ -221,7 +221,7 @@ const craftPanel = () => {
 let H = null;
 export const isHarvesting = () => !!H;
 const cancelH = () => { if (H) { cancelAnimationFrame(H.raf); H = null; } $('#hbar').hidden = true; };
-export const harvest = (id) => {
+const harvest = (id) => {
   const o = world.obj(id), d = OBJ[o.kind], day = dayAt(S.world.step);
   if (!world.objAvail(id)) return toast('Chỗ này đã khai thác, chờ mọc lại 🌱', 1800);
   const tier = d.tool ? S.tools[d.tool] || 0 : 0;
@@ -355,7 +355,7 @@ const ACT = {
   plant(v) { const [i, id] = v.split(':'), c = CROPS.find((x) => x.id === id); if (isFlooded(S, +i) || !spend(c.cost)) return; S.beds[+i] = { crop: id, progress: 0, last: Date.now(), waterUntil: 0, fert: false, flood: 0 }; S.stats.planted++; sfx.pop(); close(); },
   water(v) {
     const b = S.beds[+v], c = CROPS.find((x) => x.id === b.crop), now = Date.now(); let k = 0.6;
-    if (phaseAt(S.world.step) === 0) { if (S.lu >= 1) S.lu--; else { k = 0.3; toast('Mùa khô, ao cạn: tưới được ít. Xây lu nước mưa để trữ nước.'); } }
+    if (phaseAt(S.world.step) === 0) { if (S.lu >= 1) S.lu--; else { k = 0.3; toast('Mùa khô, nước cạn: tưới được ít. Xây lu nước mưa để trữ nước.'); } }
     b.waterUntil = Math.min(now + 0.9 * c.grow, Math.max(now, b.waterUntil) + k * c.grow); sfx.splash(); if (k === 0.6) toast('Đã tưới 💧');
   },
   pull(v) { S.beds[+v] = null; close(); },
@@ -375,7 +375,7 @@ const ACT = {
 
 export const isBusy = () => F.on;
 export const isPlacing = () => placing;
-export const startPlace = () => {
+const startPlace = () => {
   if (F.on) return;
   if (S.traps.length >= S.trapsN) return toast(`Đã đặt đủ ${S.trapsN} lờ. Nâng cấp thêm ở 🏠 Nhà.`, 3200);
   close(); placing = true; sync();
@@ -384,13 +384,13 @@ export const placeAt = (x, z) => {
   if (S.traps.length >= S.trapsN) return;
   if (!world.shallow(x, z)) return toast('Đặt lờ ở chỗ nước nông, gần bờ nhé 🌾');
   if (S.traps.some((t) => Math.hypot(t.x - x, t.z - z) < 1.1)) return toast('Chỗ này đã có lờ rồi');
-  if (world.dist(x, z) > 8) return toast('Đi lại gần ao hơn rồi hẵng thả lờ 🚶');
+  if (world.dist(x, z) > 8) return toast('Đi lại gần sông hơn rồi hẵng thả lờ 🚶');
   P = { x, z }; sfx.tap(); open(placePanel);
 };
 export const interact = (kind, idx) => {
   if (F.on) return;
   unlock(); sfx.tap();
-  if (kind === 'pond') return world.near('pond') ? startFishing() : world.approach('pond', 0);
+  if (kind === 'river') return world.near('river') ? startFishing() : world.approach('river', 0);
   if (kind === 'animal') return open(animalCard(idx));
   if (kind === 'bench') return open(craftPanel);
   if (kind === 'obj') return harvest(idx);
@@ -411,7 +411,7 @@ export const init = (w) => {
   world = w;
   document.addEventListener('click', (e) => {
     const o = e.target.closest('[data-open]');
-    if (o) { unlock(); sfx.tap(); if (F.on && o.dataset.open !== 'fish') return; if (o.dataset.open === 'fish') return F.on ? undefined : interact('pond', 0); if (o.dataset.open === 'trap') return startPlace(); return open({ market, house }[o.dataset.open]); }
+    if (o) { unlock(); sfx.tap(); if (F.on && o.dataset.open !== 'fish') return; if (o.dataset.open === 'fish') return F.on ? undefined : interact('river', 0); if (o.dataset.open === 'trap') return startPlace(); return open({ market, house }[o.dataset.open]); }
     const a = e.target.closest('[data-a]');
     if (a && !a.disabled) { unlock(); sfx.tap(); ACT[a.dataset.a]?.(a.dataset.v); if (!['close', 'fishend', 'cast', 'hook', 'unplace', 'view', 'herd', 'dex', 'coopback', 'openbuild', 'opencraft'].includes(a.dataset.a)) after(); return; }
     if (e.target.id === 'back') close();

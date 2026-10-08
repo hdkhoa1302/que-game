@@ -4,5 +4,5 @@ if ('serviceWorker' in navigator) {
   const had = !!navigator.serviceWorker.controller; let done = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (had && !done) { done = true; location.reload(); } });
 }
-// tải mô hình Blender trước; lỗi thì game vẫn chạy bằng mô hình dựng bằng code
-loadAssets().catch(() => {}).finally(() => import('./main.js'));
+// mô hình Blender là bắt buộc: tải được mới vào game, không thì báo để tải lại
+loadAssets().then(() => import('./main.js')).catch(() => { document.querySelector('#load').innerHTML = '<div>⚠️</div>Không tải được mô hình.<br>Kiểm tra mạng rồi tải lại trang.'; });

@@ -61,7 +61,6 @@ export const tree = (b, x, z, s = 1) => {
   b.cone(c, [x, 2.2 * s, z], 0.6 * s, 1.2 * s, 6);
 };
 export const rock = (b, x, z, s = 1) => b.ball(0x9a9a92, [x, 0.12 * s, z], [0.4 * s, 0.25 * s, 0.35 * s], 5);
-export const bush = (b, x, z, s = 1) => b.ball(0x3f8a35, [x, 0.3 * s, z], [0.5 * s, 0.35 * s, 0.5 * s], 5);
 export const flower = (b, x, z, c) => { b.cyl(0x3f8a35, [x, 0.12, z], 0.01, 0.01, 0.24, 3); b.ball(c, [x, 0.27, z], [0.09, 0.07, 0.09], 5); };
 export const fence = (b, x, z, len, rotY = 0) => {
   const n = Math.round(len / 0.7), cs = Math.cos(rotY), sn = Math.sin(rotY);
@@ -74,46 +73,6 @@ export const fence = (b, x, z, len, rotY = 0) => {
 };
 
 // ---- Nhà theo cấp ----
-export const house = (lv) => {
-  const b = new B();
-  const wall = [0xc9b48a, 0xefe0b8, 0xf7ecd0][lv - 1], roof = [0x6b4a36, 0xb8452f, 0xc2412c][lv - 1];
-  b.box(wall, [0, 0.9, 0], [3, 1.8, 2.4]);
-  b.box(0x8a6a4a, [0, 0.1, 0], [3.2, 0.2, 2.6]);
-  b.cone(roof, [0, 2.45, 0], 2.55, 1.5, 4, [0, Math.PI / 4, 0]);
-  b.box(0x5a3b22, [0.4, 0.7, 1.21], [0.7, 1.3, 0.05]); // cửa
-  b.box(0x9ad4e8, [-0.85, 1.0, 1.21], [0.6, 0.55, 0.05]); // cửa sổ
-  if (lv === 1) { // xiêu vẹo, vá mái
-    b.box(0x8a6a4a, [-1.0, 2.2, 0.5], [0.8, 0.08, 0.6], [0.3, 0, 0.5]);
-    b.box(0x8a6a4a, [1.0, 0.4, 1.22], [0.7, 0.05, 0.1], [0, 0, 0.5]);
-  }
-  if (lv >= 2) { // ống khói, hộp hoa
-    b.box(0x8a6a4a, [0.9, 2.9, -0.4], [0.4, 0.8, 0.4]);
-    b.box(0x7a5a3a, [-0.85, 0.65, 1.35], [0.7, 0.18, 0.2]);
-    for (let i = 0; i < 4; i++) b.ball([0xf26b8a, 0xffd23f, 0xf26b8a, 0xffffff][i], [-1.05 + i * 0.2, 0.8, 1.35], [0.07, 0.07, 0.07], 4);
-    b.box(0x5a3b22, [-0.85, 1.0, 1.24], [0.08, 0.6, 0.03]);
-  }
-  if (lv >= 3) { // hiên + đèn lồng + hoa quanh nhà
-    b.box(0xb98a52, [0.4, 1.7, 1.9], [1.5, 0.08, 1.0]);
-    b.box(0xb98a52, [-0.3, 0.85, 2.3], [0.1, 1.7, 0.1]); b.box(0xb98a52, [1.1, 0.85, 2.3], [0.1, 1.7, 0.1]);
-    b.ball(0xffb347, [0.4, 1.45, 2.2], [0.14, 0.18, 0.14], 5);
-    b.box(0xf7ecd0, [2.1, 0.8, -0.3], [1.3, 1.6, 1.6]); b.cone(roof, [2.1, 2.0, -0.3], 1.3, 0.9, 4, [0, Math.PI / 4, 0]);
-    [[-1.6, 1.5], [-1.9, 0.6], [1.6, 2.0], [-1.3, 1.9]].forEach(([x, z], i) => flower(b, x, z, [0xf26b8a, 0xffd23f, 0xb487f0, 0xffffff][i]));
-  }
-  return b.mesh();
-};
-
-export const stall = () => {
-  const b = new B();
-  b.box(0xb98a52, [0, 0.55, 0], [2.4, 0.9, 1.1]);
-  b.box(0xd9a86a, [0, 1.03, 0], [2.6, 0.08, 1.3]);
-  [[-1.2, -0.55], [1.2, -0.55], [-1.2, 0.55], [1.2, 0.55]].forEach(([x, z]) => b.box(0x7a4f2b, [x, 1.3, z], [0.08, 2.0, 0.08]));
-  for (let i = 0; i < 6; i++) b.box(i % 2 ? 0xffffff : 0xd8433a, [-1.1 + i * 0.44, 2.3, 0], [0.44, 0.06, 1.5], [0.25, 0, 0]);
-  b.ball(0xe5483a, [-0.7, 1.15, 0.1], [0.12, 0.12, 0.12], 5); b.ball(0xf08a24, [-0.45, 1.15, 0.0], [0.13, 0.13, 0.13], 5);
-  b.ball(0x58b947, [0.5, 1.15, 0.1], [0.14, 0.12, 0.14], 5); b.box(0xefe0b8, [0.8, 1.14, 0.0], [0.3, 0.1, 0.2]);
-  b.box(0xb98a52, [1.9, 0.3, 0.3], [0.6, 0.6, 0.6]); b.box(0xb98a52, [-1.9, 0.25, 0.4], [0.5, 0.5, 0.5]);
-  return b.mesh();
-};
-
 export const coop = (lv, leaf) => {
   const b = new B();
   b.box(0xb98a52, [0, 0.55, 0], [1.9, 1.1, 1.4]);
@@ -122,13 +81,6 @@ export const coop = (lv, leaf) => {
   b.box(0xe8d9b0, [-0.5, 0.7, 0.71], [0.4, 0.4, 0.04]);
   b.box(0x8a6a4a, [0.5, 0.2, 1.1], [0.8, 0.06, 0.6], [0.35, 0, 0]);
   if (lv > 2) b.box(0xe8d9b0, [1.6, 0.4, 0], [1.2, 0.8, 1.2]);
-  return b.mesh();
-};
-
-export const dock = () => {
-  const b = new B();
-  for (let i = 0; i < 7; i++) b.box(0xa9783f, [i * 0.42, 0.26, 0], [0.36, 0.06, 1.1]);
-  [[0.2, 0.5], [0.2, -0.5], [2.4, 0.5], [2.4, -0.5]].forEach(([x, z]) => b.cyl(0x6b4a2a, [x, 0.0, z], 0.07, 0.07, 0.6, 5));
   return b.mesh();
 };
 
@@ -179,13 +131,6 @@ export const duck = (color, male) => {
 export const nest = () => new B().cyl(0xd9b45a, [0, 0.1, 0], 0.38, 0.46, 0.2, 8).cyl(0xc9a24a, [0, 0.2, 0], 0.3, 0.3, 0.05, 8).ball(0xf6f0e2, [0, 0.27, 0], [0.1, 0.07, 0.08], 5).mesh();
 export const lu = () => new B().cyl(0x9a6b3e, [0, 0.45, 0], 0.36, 0.28, 0.9, 8).cyl(0x7a4f2b, [0, 0.92, 0], 0.4, 0.4, 0.06, 8).cyl(0x4aa8d8, [0, 0.9, 0], 0.3, 0.3, 0.03, 8).mesh();
 export const manure = () => new B().ball(0x6a4a2a, [0, 0.2, 0], [0.6, 0.28, 0.5], 5).ball(0x7a5a30, [0.35, 0.14, 0.22], [0.3, 0.2, 0.3], 5).ball(0x5f8f3a, [-0.2, 0.42, 0], [0.16, 0.1, 0.16], 4).box(0xa88a50, [0.5, 0.25, -0.3], [0.5, 0.05, 0.05], [0, 0.6, 0.3]).mesh();
-export const monkeyBridge = () => {
-  const b = new B(), L = 4.7;
-  for (let i = 0; i < 4; i++) b.cyl(0xb8a050, [L * (i + 0.5) / 4, 0.32 + (i % 2) * 0.02, 0], 0.06, 0.06, L / 4 + 0.08, 5, [0, 0, Math.PI / 2]);
-  b.cyl(0xa89040, [L / 2, 0.95, 0.4], 0.04, 0.04, L, 5, [0, 0, Math.PI / 2]);
-  [0, L / 2, L].forEach((x) => { b.cyl(0x8a6a3a, [x, 0.3, 0], 0.07, 0.07, 1.2, 5); b.cyl(0x8a6a3a, [x, 0.5, 0.4], 0.05, 0.05, 1.0, 5); });
-  return b.mesh();
-};
 export const platform = () => new B().box(0x7a5a38, [0, -0.1, 0], [2.1, 0.24, 1.5]).mesh();
 
 // ---- Cây trồng theo giai đoạn 0..2 ----
@@ -217,17 +162,6 @@ export const cloud = () => {
 };
 
 // Nhân vật: nón lá + áo xanh; chân là nhóm riêng (pivot ở hông) để đu đưa khi đi.
-export const player = () => {
-  const g = new THREE.Group();
-  const body = new B().box(0x3f7fbf, [0, 0.62, 0], [0.36, 0.44, 0.22]).ball(0xf1c9a0, [0, 0.98, 0], [0.17, 0.17, 0.17], 6)
-    .cone(0xe8c75a, [0, 1.17, 0], 0.36, 0.2, 8).box(0xf1c9a0, [0.24, 0.62, 0], [0.08, 0.36, 0.1]).box(0xf1c9a0, [-0.24, 0.62, 0], [0.08, 0.36, 0.1]).mesh();
-  const leg = (x) => { const p = new THREE.Group(), m = new B().box(0x5a4632, [0, -0.2, 0], [0.13, 0.4, 0.15]).mesh(); p.add(m); p.position.set(x, 0.4, 0); return p; };
-  const legL = leg(-0.1), legR = leg(0.1);
-  g.add(body, legL, legR, blob(0.32));
-  g.userData = { body, legL, legR };
-  return g;
-};
-
 // ---- Vật thể khai thác: hình đầy đủ + hình sau khi khai thác (null = ẩn) ----
 export const objGeo = (kind) => {
   const b = new B(), sp = new B();
@@ -285,15 +219,14 @@ export const bench = () => {
   return b.mesh();
 };
 
-// ---- Mô hình từ Blender (rơi về mô hình dựng bằng code nếu chưa tải được) ----
+// ---- Mô hình từ Blender (bắt buộc tải xong trước khi vào game: xem boot.js) ----
 export const fromBlender = (name) => (A.has(name) ? new THREE.Mesh(A.geo(name), MAT) : null);
-export const houseB = (lv) => fromBlender(`nha${lv}`) ?? house(lv);
-export const stallB = () => fromBlender('quay_cho') ?? stall();
-export const dockB = () => fromBlender('ben_tre') ?? dock();
-export const bridgeB = () => fromBlender('cau_khi') ?? monkeyBridge();
+export const houseB = (lv) => fromBlender(`nha${lv}`);
+export const stallB = () => fromBlender('quay_cho');
+export const dockB = () => fromBlender('ben_tre');
+export const bridgeB = () => fromBlender('cau_khi');
 export const playerB = () => {
   const body = fromBlender('player_body'), lg = fromBlender('player_leg');
-  if (!body || !lg) return player();
   const g = new THREE.Group(), mk = (x) => { const p = new THREE.Group(), m = lg.clone(); p.add(m); p.position.set(x, 0.4, 0); return p; };
   const legL = mk(-0.1), legR = mk(0.1);
   g.add(body, legL, legR, blob(0.32)); g.userData = { body, legL, legR };

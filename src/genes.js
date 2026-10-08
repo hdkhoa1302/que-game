@@ -1,5 +1,5 @@
 // Gen gà vịt: 5 locus × 2 allele (0–9). Thuần, không đụng DOM.
-export const LOCI = ['color', 'size', 'eggs', 'resist', 'water'];
+const LOCI = ['color', 'size', 'eggs', 'resist', 'water'];
 export const MUT = 0.02;
 
 export const mulberry32 = (a) => () => {

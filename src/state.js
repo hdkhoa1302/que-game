@@ -1,6 +1,7 @@
-import { CROPS, QUESTS, TRAP_CAP, MIN, START_STEP, SP, START_RES } from './data.js';
+import { CROPS, QUESTS, TRAP_CAP, MIN, START_STEP, START_RES } from './data.js';
 import { advance, growBed, addAnimal, nestCap as nestCapOf, dayAt } from './sim.js';
 import { mulberry32, founder } from './genes.js';
+import { shallowAt, snapToShallow } from './objs.js';
 
 const KEY = 'que-game-v1';
 
@@ -31,6 +32,7 @@ export const S = (() => {
     if (raw && raw.coins != null) {
       const DEF = [[4.1, 0.9], [8.6, 1.5], [9.9, -1.9], [6.7, -3.9]]; // bản lưu cũ: lờ cố định
       raw.traps = (raw.traps || []).filter(Boolean).map((t, i) => (t.x == null ? { x: DEF[i][0], z: DEF[i][1], ...t } : t));
+      raw.traps = raw.traps.map((t) => { if (shallowAt(t.x, t.z)) return t; const [x, z] = snapToShallow(t.x, t.z); return { ...t, x, z }; }); // lờ cũ đặt trong ao: kéo về nước nông ven sông
       const s = { ...fresh(), ...raw };
       s.stats = { ...fresh().stats, ...raw.stats }; s.tools = { rua: 1, ...(raw.tools || {}) }; s.obj = raw.obj || {};
       if (!raw.qv) { s.quest = (raw.quest || 0) + 3; s.qv = 2; } // 3 nhiệm vụ công cụ mới ở đầu danh sách: bản lưu cũ bỏ qua

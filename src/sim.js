@@ -5,7 +5,7 @@ import { rngAt, founder, cross, avg, colorOf, sizeGroup } from './genes.js';
 export const phaseAt = (n) => Math.floor(n / PHASE_STEPS) % 4;
 export const dayAt = (n) => Math.floor(n / DAY_STEPS);
 export const stepF = (S, now = Date.now()) => S.world.base + (now - S.t0) / STEP_MS;
-export const stepTime = (S, n) => S.t0 + (n - S.world.base) * STEP_MS;
+const stepTime = (S, n) => S.t0 + (n - S.world.base) * STEP_MS;
 export const weatherOf = (seed, day) => {
   const p = WEATHER_P[phaseAt(day * DAY_STEPS)], r = rngAt(seed, 70000 + day)();
   let a = 0;
