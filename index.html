@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#6bb86a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Về quê</title>
+<style>
+:root{--ink:#3a2a1a;--paper:#fff8e8;--glass:rgba(255,248,232,.9);--line:#e4d3a4;--edge:#c9b479;--green:#4e9d45;--gdark:#2f7a2f;--gold:#f3b53f;--gold-d:#b88418;--red:#d8523f;--r:18px;--safe-t:max(10px,env(safe-area-inset-top));--safe-b:max(10px,env(safe-area-inset-bottom))}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+html,body{margin:0;height:100%;overflow:hidden;background:#9fd8f0;font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);overscroll-behavior:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#vig{position:fixed;inset:0;pointer-events:none;z-index:1;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(30,50,20,.28) 100%)}
+.glass{background:var(--glass);border:2px solid var(--line);box-shadow:0 3px 0 var(--edge),0 8px 18px rgba(40,30,10,.18);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+#hud{position:fixed;top:var(--safe-t);left:12px;right:12px;display:flex;flex-direction:column;gap:8px;pointer-events:none;z-index:3}
+#row1{display:flex;gap:8px;align-items:center}
+#coins{padding:6px 14px 6px 8px;font-weight:900;font-size:19px;border-radius:999px;display:flex;align-items:center;gap:6px;min-width:110px}
+#coins b{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe58a,#f3b53f 60%,#d99a1e);box-shadow:inset 0 -2px 0 #b88418;font-size:15px}
+#coins.bump{animation:bump .3s}
+@keyframes bump{40%{transform:scale(1.12)}}
+#clock{margin-left:auto;padding:6px 12px;border-radius:999px;font-weight:800;font-size:15px;display:flex;gap:6px;align-items:center}
+#quest{padding:8px 12px;font-size:13.5px;font-weight:700;line-height:1.25;border-radius:var(--r);max-width:430px;display:flex;gap:8px;align-items:center}
+#quest .q{flex:1;min-width:0}
+#quest small{display:block;font-weight:600;opacity:.65;font-size:12px}
+#quest .rw{flex:none;padding:3px 9px;border-radius:999px;background:#fff1c2;border:2px solid #f0d27a;font-weight:900;font-size:13px}
+#chips{display:flex;flex-wrap:wrap;gap:6px}
+#chips button{pointer-events:auto;border:2px solid var(--line);background:var(--glass);border-radius:999px;padding:5px 11px;font-weight:900;font-size:14px;box-shadow:0 2px 0 var(--edge);color:var(--ink);animation:pop .3s}
+#chips button:active{transform:translateY(2px);box-shadow:none}
+#bar{position:fixed;left:50%;transform:translateX(-50%);bottom:var(--safe-b);display:flex;gap:6px;padding:7px;border-radius:26px;z-index:3}
+#bar button{position:relative;width:58px;height:58px;border-radius:18px;font-size:26px;background:transparent;border:0;line-height:1;padding:0;color:var(--ink);transition:background .15s}
+#bar button span{display:block;font-size:10.5px;font-weight:800;margin-top:3px;opacity:.8}
+#bar button:active{background:#f1e2b4;transform:scale(.94)}
+#bar button i{position:absolute;top:2px;right:2px;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-style:normal;font-size:11px;font-weight:900;line-height:18px;padding:0 4px;border:2px solid #fff}
+#bar button i:empty{display:none}
+#act{position:fixed;right:16px;bottom:calc(var(--safe-b) + 84px);width:92px;height:92px;border-radius:50%;border:4px solid #fff;background:radial-gradient(circle at 35% 25%,#7fd06a,#4e9d45 70%);box-shadow:0 5px 0 var(--gdark),0 12px 20px rgba(20,60,20,.35);color:#fff;font-size:34px;line-height:1;padding:0;z-index:3;animation:pulse 1.6s infinite}
+#act span{display:block;font-size:11.5px;font-weight:900;margin-top:2px;text-shadow:0 1px 0 rgba(0,0,0,.25)}
+#act:active{transform:translateY(3px);box-shadow:0 2px 0 var(--gdark)}
+@keyframes pulse{50%{box-shadow:0 5px 0 var(--gdark),0 0 0 10px rgba(127,208,106,.35)}}
+#back{position:fixed;inset:0;background:rgba(30,20,10,.38);z-index:5;animation:fade .2s}
+@keyframes fade{from{opacity:0}}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:6;max-height:78vh;overflow:auto;background:var(--paper);border-radius:28px 28px 0 0;border-top:3px solid var(--line);padding:22px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -8px 28px rgba(0,0,0,.28);animation:up .2s ease-out;max-width:560px;margin:0 auto}
+#sheet:before{content:"";position:absolute;top:8px;left:50%;width:44px;height:5px;margin-left:-22px;border-radius:3px;background:var(--line)}
+@keyframes up{from{transform:translateY(50px);opacity:0}}
+#sheet h2{margin:0 36px 4px 0;font-size:21px}
+#sheet p{margin:4px 0 10px;font-size:14px;opacity:.82;line-height:1.35}
+.x{position:absolute;right:12px;top:14px;width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:#fff;font-size:17px;padding:0;color:var(--ink)}
+.row{display:flex;align-items:center;gap:10px;padding:10px 8px;margin:0 -8px;border-bottom:1px dashed var(--line);border-radius:12px}
+.row:last-child{border:0}
+.row .ic{font-size:28px;width:38px;height:38px;display:grid;place-items:center;background:#fff1c2;border-radius:12px;flex:none}
+.row .tx{flex:1;min-width:0;font-weight:800;font-size:15px}
+.row .tx small{display:block;font-weight:600;opacity:.65;font-size:12px;margin-top:1px}
+.btn{border:0;border-radius:14px;background:linear-gradient(#5fb457,#4e9d45);color:#fff;font-weight:900;font-size:15px;padding:11px 14px;box-shadow:0 3px 0 var(--gdark);min-height:44px;white-space:nowrap}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--gdark)}
+.btn.gold{background:linear-gradient(#ffd070,#f3b53f);color:var(--ink);box-shadow:0 3px 0 var(--gold-d)}
+.btn.red{background:linear-gradient(#e8705c,#d8523f);box-shadow:0 3px 0 #9a3322}
+.btn.gray,.btn[disabled]{background:#cfc6ad;box-shadow:0 3px 0 #a79e86;color:#fff}
+.btn.big{width:100%;font-size:18px;padding:14px}
+.bar{height:14px;border-radius:8px;background:#eadcb4;overflow:hidden;margin:8px 0;box-shadow:inset 0 2px 0 rgba(0,0,0,.08)}
+.bar i{display:block;height:100%;background:linear-gradient(#7fd06a,#4e9d45);border-radius:8px;transition:width .6s}
+#clock{flex-direction:column;align-items:flex-end;gap:0;padding:5px 12px;line-height:1.15}
+#clock b{font-size:14px}
+#clock small{font-size:11px;font-weight:700;opacity:.7}
+.gene{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:800}
+.gene span{width:66px}
+.gene .bar{flex:1;margin:5px 0}
+.gene b{width:30px;text-align:right}
+#hbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--safe-b) + 86px);z-index:4;padding:8px 16px;border-radius:18px;font-weight:800;font-size:14px;width:min(80vw,260px);text-align:center}
+#hbar .bar{margin:6px 0 0}
+#zone{align-self:flex-start;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:800;pointer-events:none}
+#toast{position:fixed;left:50%;top:calc(var(--safe-t) + 150px);transform:translateX(-50%);z-index:9;background:rgba(58,42,26,.94);color:#fff;padding:10px 16px;border-radius:16px;font-weight:800;font-size:14px;max-width:88vw;text-align:center;pointer-events:none;animation:pop .25s;box-shadow:0 6px 16px rgba(0,0,0,.3)}
+@keyframes pop{from{transform:translate(-50%,-10px) scale(.9);opacity:0}}
+#chips button{animation-name:chip}
+@keyframes chip{from{transform:scale(.8);opacity:0}}
+#fish{position:fixed;inset:0;z-index:4;pointer-events:none}
+#fish .card{position:absolute;left:50%;bottom:calc(var(--safe-b) + 84px);transform:translateX(-50%);width:min(92vw,360px);background:var(--paper);border:3px solid var(--line);border-radius:24px;padding:14px;text-align:center;pointer-events:auto;box-shadow:0 8px 24px rgba(0,0,0,.32)}
+#fish h3{margin:0 0 6px;font-size:18px}
+#reel{display:flex;gap:14px;justify-content:center;align-items:stretch;margin-top:10px}
+#track{position:relative;width:46px;height:150px;background:linear-gradient(#a8e0f4,#5fb4dc);border:3px solid #2a7da3;border-radius:14px;overflow:hidden}
+#catcher{position:absolute;left:0;right:0;background:rgba(80,200,90,.72);border-top:2px solid var(--gdark);border-bottom:2px solid var(--gdark)}
+#fishy{position:absolute;left:8px;width:30px;font-size:22px;text-align:center;line-height:1}
+#prog{width:16px;height:150px;background:#eadcb4;border:2px solid var(--line);border-radius:10px;position:relative;overflow:hidden}
+#prog i{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(#ffd070,#f3b53f)}
+#hold{flex:1;min-height:150px;border:0;border-radius:18px;background:linear-gradient(#5fb457,#4e9d45);color:#fff;font-weight:900;font-size:20px;box-shadow:0 4px 0 var(--gdark);touch-action:none}
+#hold:active,#hold.on{background:#3f8a3a;transform:translateY(2px)}
+#hint{position:fixed;left:12px;right:12px;top:calc(var(--safe-t) + 118px);z-index:3;padding:8px 12px;font-size:13px;font-weight:800;display:flex;gap:8px;align-items:center;justify-content:space-between;border-radius:18px}
+#joy{position:fixed;left:16px;bottom:calc(var(--safe-b) + 84px);width:116px;height:116px;border-radius:50%;background:radial-gradient(circle,rgba(255,248,230,.35),rgba(255,248,230,.6));border:3px solid rgba(255,255,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.2),inset 0 0 0 10px rgba(255,255,255,.12);z-index:2;touch-action:none}
+#joy:before{content:"";position:absolute;inset:14px;border-radius:50%;border:2px dashed rgba(255,255,255,.7)}
+#joy i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#f4e6bd);border:2px solid var(--line);box-shadow:0 3px 0 var(--edge),0 6px 10px rgba(0,0,0,.25)}
+body.busy #joy,body.busy #act,body.busy #chips,body.busy #hbar{display:none}
+#load{position:fixed;inset:0;z-index:20;background:linear-gradient(#bfe6f5,#cfeab0);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-size:22px;gap:10px;transition:opacity .4s}
+#load div{font-size:60px;animation:pulse2 1.2s infinite}
+@keyframes pulse2{50%{transform:scale(1.12)}}
+
+/* ===== Phong cách miền Tây: khăn rằn, nón lá, lá chuối, phù sa ===== */
+:root{--ink:#3b2a1a;--paper:#fff6e0;--glass:rgba(255,246,224,.92);--line:#dcc48c;--edge:#b89a58;--green:#4a8f3a;--gdark:#2f6a2a;--gold:#f0b43a;--ran:repeating-linear-gradient(90deg,#c83a2a 0 9px,#f6efe2 9px 12px,#25252b 12px 14px,#f6efe2 14px 17px)}
+body{background:#8fd0e6}
+.glass{border-radius:20px;border-width:2.5px}
+#bar{padding-bottom:12px;overflow:hidden}
+#bar:after{content:"";position:absolute;left:0;right:0;bottom:0;height:6px;background:var(--ran);opacity:.95}
+#sheet{border-top:0;padding-top:28px}
+#sheet:after{content:"";position:absolute;left:0;right:0;top:0;height:9px;background:var(--ran);border-radius:28px 28px 0 0}
+#sheet:before{top:14px;background:#d9bf86}
+#sheet h2{font-size:21px;letter-spacing:.2px}
+#sheet h2:after{content:"";display:block;width:54px;height:4px;margin-top:5px;border-radius:3px;background:linear-gradient(90deg,#4a8f3a,#9bcf5a)}
+.x{top:20px}
+#quest{border-left:7px solid #c83a2a}
+#coins b{background:radial-gradient(circle at 35% 30%,#fff0a8,#e8b23a 60%,#c88a1e);color:#7a4f10}
+.row .ic{background:#f6e7b8;border:2px solid #e8d49a}
+.btn{background:linear-gradient(#78b95a,#4a8f3a);box-shadow:0 3px 0 var(--gdark)}
+.btn.gold{background:linear-gradient(#ffd070,#f0a82a);color:#4a2f10}
+#act{background:radial-gradient(circle at 35% 25%,#8fd06a,#4a8f3a 70%);border-color:#fff6e0}
+#hbar{border-left:6px solid #4a8f3a}
+#joy{background:radial-gradient(circle,rgba(255,246,224,.3),rgba(120,185,90,.35));border-color:rgba(255,246,224,.9)}
+#joy:before{border-color:rgba(255,246,224,.75);inset:12px}
+#joy i{background:radial-gradient(circle at 50% 38%,#f7e9b8 0 14%,#e9cf86 15% 38%,#f3dc9a 39% 62%,#d9b45a 63% 100%);border:3px solid #b08a3a;box-shadow:0 3px 0 #8a6a28,0 6px 10px rgba(0,0,0,.25)}
+#zone{border-color:#a8c870;background:rgba(235,246,210,.92)}
+#toast{background:rgba(70,45,20,.95);border:2px solid #dcc48c}
+#load{background:linear-gradient(#cfeaf5 0 55%,#9ed0e6 55%);overflow:hidden}
+#load div{font-size:72px;animation:boat 2.4s ease-in-out infinite}
+@keyframes boat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(10px) rotate(4deg)}}
+#load:after{content:"Miền Tây sông nước";font-size:13px;font-weight:700;opacity:.6;letter-spacing:2px;text-transform:uppercase}
+#load:before{content:"";position:absolute;left:0;right:0;bottom:0;height:46%;background:repeating-linear-gradient(0deg,rgba(255,255,255,.18) 0 3px,transparent 3px 22px),linear-gradient(#7cc0dc,#4f9cc4)}
+
+[hidden]{display:none!important}
+</style>
+  <script type="module" crossorigin src="./assets/index-Cows9m2G.js"></script>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vig"></div>
+<div id="hud"><div id="row1"><div id="coins" class="glass"><b>🪙</b><span id="cv">0</span></div><div id="clock" class="glass"><b>🌦️ Đầu mưa</b><small>Năm 1</small></div></div><div id="quest" class="glass"></div><div id="zone" class="glass">📍 Làng</div><div id="chips"></div></div>
+<div id="fish" hidden></div>
+<div id="hbar" class="glass" hidden><span></span><div class="bar"><i></i></div></div>
+<div id="hint" class="glass" hidden>🪤 Chạm vào chỗ nước nông ven bờ để thả lờ <button class="btn gray" data-a="unplace" style="min-height:34px;padding:6px 12px">Huỷ</button></div>
+<div id="joy"><i></i></div>
+<button id="act" hidden></button>
+<div id="bar" class="glass">
+  <button data-open="fish">🎣<span>Câu</span></button>
+  <button data-open="trap">🪤<span>Lờ</span><i></i></button>
+  <button data-open="market">🧺<span>Chợ</span></button>
+  <button data-open="house">🏠<span>Nhà</span></button>
+  <button id="snd">🔊<span>Âm</span></button>
+</div>
+<div id="back" hidden></div>
+<div id="sheet" hidden><button class="x" data-a="close">✕</button><div id="sheetBody"></div></div>
+<div id="load"><div>🛶</div>Về miệt vườn…</div>
+</body>
+</html>
