@@ -1,6 +1,6 @@
 // Địa lý và vật thể khai thác: sông, hồ, sinh vật thể xác định, kiểm tra còn dùng được. Thuần, không đụng DOM.
 import { mulberry32 } from './genes.js';
-import { OBJ, ZONES, WATER_MIX, WALK_R, PADDY, PLOTS, RIVER } from './data.js';
+import { OBJ, ZONES, WATER_MIX, OBJ_GAP, OBJ_NEAR, WALK_R, PADDY, PLOTS, RIVER } from './data.js';
 
 export const LAKE = { x: -23, z: 3, rx: 5.5, rz: 3 };
 export const inEll = (e, x, z, k = 1) => ((x - e.x) / (e.rx * k)) ** 2 + ((z - e.z) / (e.rz * k)) ** 2 < 1;
@@ -46,23 +46,47 @@ export const snapToShallow = (x, z, k = 1) => {
 };
 
 // khu nhà, vườn, chuồng, chợ, bến: không rải vật thể; bờ sông thì chỉ vật ven nước được ở đó
-export const keepOut = (x, z, wet = false) => (x > PADDY.x0 - 1 && x < PADDY.x1 + 1 && z > PADDY.z0 - 1 && z < PADDY.z1 + 1) || inEll(LAKE, x, z, 1.25) || (x > -9 && x < 3 && z > -4.6 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.8) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 8 && z > 3.6 && z < 8.2) || (x > 1 && x < 7.5 && z > -2.4 && z < 0.8) || (() => { const r = riverAt(x, z, 1.2); return wet ? r.d < r.half * 1.12 : r.d < r.half * 1.2 + 0.7; })();
+export const keepOut = (x, z, wet = false) => (x > PADDY.x0 - 1 && x < PADDY.x1 + 1 && z > PADDY.z0 - 1 && z < PADDY.z1 + 1) || inEll(LAKE, x, z, 1.25) || (x > -9 && x < 3 && z > -4.6 && z < 5.3) || (x > -9 && x < 3 && z > 4.5 && z < 10.8) || (x > -9 && x < -1 && z > -9 && z < -2) || (x > 1 && x < 8 && z > 3.6 && z < 8.2) || (x > 1 && x < 7.5 && z > -2.4 && z < 0.8) || (() => { const r = riverAt(x, z, wet ? 1.15 : 1.2); return wet ? r.d < r.half * 1.02 : r.d < r.half * 1.2 + 0.7; })();
 
 export const genObjects = () => {
-  const rng = mulberry32(20241008), list = [];
-  const add = (kind, x, z, gap = 1.35, wet = false) => {
-    if (Math.hypot(x, z) > WALK_R - 1 || keepOut(x, z, wet) || list.some((o) => Math.hypot(o.x - x, o.z - z) < gap)) return false;
-    list.push({ id: list.length, kind, x, z, rot: rng() * 6.283, s: 0.85 + rng() * 0.4 });
-    return true;
+  const rng = mulberry32(20241008), list = [], TAU = 6.283;
+  const pick = (a, b) => a + rng() * (b - a);
+  const add = (kind, x, z, wet = false) => {
+    const gap = OBJ_GAP[kind] || 0.9;
+    if (Math.hypot(x, z) > WALK_R - 1 || keepOut(x, z, wet) || list.some((o) => Math.hypot(o.x - x, o.z - z) < Math.max(gap, OBJ_GAP[o.kind] || 0.9) * 0.85 + gap * 0.15)) return null;
+    const o = { id: list.length, kind, x, z, rot: rng() * TAU, s: 0.85 + rng() * 0.4 }; list.push(o); return o;
   };
-  for (const zn of ZONES) for (const [kind, n] of zn.mix) {
-    for (let k = 0, got = 0; got < n && k < n * 60; k++) { const a = rng() * 6.283, r = Math.sqrt(rng()) * zn.r; if (add(kind, zn.x + Math.cos(a) * r, zn.z + Math.sin(a) * r)) got++; }
+  // một nhóm: tâm c, n cá thể trong bán kính tỏa ra theo số lượng
+  const group = (kind, cx, cz, n, wet) => { const sp = 0.7 + 0.5 * n; for (let i = 0, got = 0; got < n && i < n * 14; i++) { const a = rng() * TAU, r = Math.sqrt(rng()) * sp; if (add(kind, cx + Math.cos(a) * r, cz + Math.sin(a) * r, wet)) got++; } };
+  for (const zn of ZONES) {
+    const mix = [...zn.mix].sort((p, q) => (OBJ_NEAR[p[0]] ? 1 : 0) - (OBJ_NEAR[q[0]] ? 1 : 0)); // loài đi kèm đặt sau
+    for (const [kind, n, g] of mix) {
+      if (OBJ_NEAR[kind]) { // cạnh một cây/bụi/đá đã có trong khu
+        const anchors = list.filter((o) => OBJ_NEAR[kind].includes(o.kind) && Math.hypot(o.x - zn.x, o.z - zn.z) < zn.r + 2);
+        for (let k = 0, got = 0; got < n && k < n * 40; k++) {
+          const c = anchors.length ? anchors[Math.floor(rng() * anchors.length)] : { x: zn.x + pick(-zn.r, zn.r) * 0.7, z: zn.z + pick(-zn.r, zn.r) * 0.7 }, a = rng() * TAU, r = pick(0.9, 1.9);
+          if (add(kind, c.x + Math.cos(a) * r, c.z + Math.sin(a) * r)) got++;
+        }
+        continue;
+      }
+      for (let left = n, k = 0; left > 0 && k < n * 30; k++) { const m = Math.min(g, left), a = rng() * TAU, r = Math.sqrt(rng()) * zn.r, before = list.length; group(kind, zn.x + Math.cos(a) * r, zn.z + Math.sin(a) * r, m); left -= list.length - before; }
+    }
   }
-  for (const [kind, n] of WATER_MIX.river) { // dọc hai bờ sông
-    for (let k = 0, got = 0; got < n && k < n * 80; k++) { const p = riverPoint(0.03 + rng() * 0.9, 1.15), side = rng() < 0.5 ? -1 : 1, f = 1.08 + rng() * 0.4; if (add(kind, p.x + p.nx * side * p.half * f, p.z + p.nz * side * p.half * f, 0.8, true)) got++; }
+  // ven sông: mọc thành mảng dọc bờ, đi theo đường bờ, ưu tiên bờ làng
+  const Ltot = RS[N - 1].L, west = (p) => (Math.hypot(p.x + p.nx * p.half, p.z + p.nz * p.half) < Math.hypot(p.x - p.nx * p.half, p.z - p.nz * p.half) ? 1 : -1);
+  for (const [kind, n, g, f0, f1] of WATER_MIX.river) {
+    for (let left = n, k = 0; left > 0 && k < n * 12; k++) {
+      const s0 = pick(0.03, 0.93), c = riverPoint(s0, 1), side = rng() < 0.65 ? west(c) : -west(c), m = Math.min(g, left), before = list.length, f = pick(f0, f1);
+      for (let i = 0; i < m; i++) { const p = riverPoint(Math.min(0.97, Math.max(0.03, s0 + (i - (m - 1) / 2) * pick(0.9, 1.5) / Ltot)), 1), ff = Math.max(1.17, f + pick(-0.05, 0.05)); add(kind, p.x + p.nx * side * p.half * ff, p.z + p.nz * side * p.half * ff, true); }
+      left -= list.length - before;
+    }
   }
-  for (const [kind, n] of WATER_MIX.lake) { // quanh rạch
-    for (let k = 0, got = 0; got < n && k < n * 60; k++) { const a = rng() * 6.283, f = 1.34 + rng() * 0.3; if (add(kind, LAKE.x + Math.cos(a) * LAKE.rx * f, LAKE.z + Math.sin(a) * LAKE.rz * f, 0.8, true)) got++; }
+  for (const [kind, n, g, f0, f1] of WATER_MIX.lake) { // quanh rạch: cụm theo góc
+    for (let left = n, k = 0; left > 0 && k < n * 12; k++) {
+      const a0 = rng() * TAU, m = Math.min(g, left), before = list.length;
+      for (let i = 0; i < m; i++) { const a = a0 + (i - (m - 1) / 2) * 0.22, f = pick(f0, f1); add(kind, LAKE.x + Math.cos(a) * LAKE.rx * f, LAKE.z + Math.sin(a) * LAKE.rz * f, true); }
+      left -= list.length - before;
+    }
   }
   // bốn thửa ruộng: vật thể khai thác đặc biệt, mỗi thửa một mục (tâm thửa + hình chữ nhật)
   PLOTS.forEach((pl) => list.push({ id: list.length, kind: 'thua', x: (pl.x0 + pl.x1) / 2, z: (pl.z0 + pl.z1) / 2, rot: 0, s: 1, plot: pl }));

@@ -90,7 +90,7 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
   const { OBJ, TOOLS, ZONES } = await import('./src/data.js');
   const a = genObjects(), b = genObjects();
   assert.deepEqual(a, b, 'vị trí vật thể phải xác định');
-  const WET = ['snail', 'reed', 'nipa', 'clay', 'dien', 'lily', 'ban'];
+  const WET = ['snail', 'reed', 'nipa', 'clay', 'dien', 'lily', 'ban', 'pebble'];
   assert.ok(a.length > 200 && a.filter((o) => o.kind !== 'thua').every((o) => !keepOut(o.x, o.z, WET.includes(o.kind))), 'đủ vật thể, không đè khu nhà vườn, không rơi xuống sông');
   assert.ok(a.filter((o) => o.kind !== 'thua').every((o) => { const r = riverAt(o.x, o.z, 1.15); return r.d > r.half * 1.0; }), 'không vật thể nào nằm trong nước kể cả lúc nước nổi');
   for (const k of Object.keys(OBJ)) assert.ok(a.some((o) => o.kind === k), `thiếu loại ${k}`);

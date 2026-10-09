@@ -144,7 +144,7 @@ export const OBJ = {
   thua: { name: 'Thửa ruộng', icon: '🌾', tool: 'liem', verb: 'Gặt lúa', time: 6, yield: { thoc: [6, 9] }, regrow: 5, phases: [0] }, // chỉ chín mùa khô; thóc vào kho cho gà vịt
   ban: { name: 'Cây bần', icon: '🌳', tool: 'riu', verb: 'Chặt bần', time: 6, yield: { go: [3, 5] }, regrow: 7 },
   nipa: { name: 'Dừa nước', icon: '🌴', tool: 'rua', verb: 'Chặt lá dừa nước', time: 3, yield: { la: [2, 4] }, regrow: 3 },
-  bamboo: { name: 'Bụi tre', icon: '🎋', tool: 'rua', verb: 'Chặt tre', time: 3, yield: { tre: [2, 3] }, regrow: 2 },
+  bamboo: { name: 'Bụi tre', icon: '🎋', tool: 'rua', verb: 'Chặt tre', time: 4, yield: { tre: [3, 4] }, regrow: 3 },
   rock: { name: 'Tảng đá', icon: '🪨', tool: 'cuoc', verb: 'Đập đá', time: 6, yield: { da: [2, 3] }, regrow: 8 },
   grass: { name: 'Cỏ rơm', icon: '🌾', tool: 'liem', verb: 'Cắt rơm', time: 2, yield: { rom: [2, 3], soi: [0, 1] }, regrow: 1 },
   reed: { name: 'Lau sậy', icon: '🌿', tool: 'liem', verb: 'Cắt sậy', time: 3, yield: { rom: [1, 2], soi: [1, 2] }, regrow: 2 },
@@ -157,18 +157,26 @@ export const OBJ = {
   pebble: { name: 'Đá cuội', icon: '⚪', tool: null, verb: 'Nhặt đá', time: 1.2, yield: { da: [1, 1] }, regrow: 2 },
   weed: { name: 'Cỏ dại', icon: '🌱', tool: null, verb: 'Nhổ cỏ', time: 1.2, yield: { soi: [1, 1] }, regrow: 1 },
 };
-// Bố cục theo công dụng. Bờ tây (làng): tài nguyên khởi đầu, tre, gỗ, đá, sét. Bờ đông (qua cầu khỉ): rừng dừa tre, đồng lúa.
+// Bố cục theo công dụng và theo đặc tính sinh thái. mix: [loại, tổng số, cỡ nhóm]: tre, cây, đá mọc thành cụm; cành khô mọc cạnh cây/bụi, đá cuội cạnh đá.
+// Bờ tây (làng): tài nguyên khởi đầu, lũy tre, gỗ, đá. Bờ đông (qua cầu khỉ): rừng dừa tre, đồng lúa.
 export const ZONES = [
-  { id: 'lang', name: 'Làng', x: 0, z: 2, r: 15, mix: [['branch', 8], ['pebble', 8], ['weed', 10], ['grass', 8], ['berry', 3], ['tree', 3], ['rock', 1], ['bamboo', 2]] },
-  { id: 'tre', name: 'Lũy tre', x: -19, z: -9, r: 7, mix: [['bamboo', 12], ['branch', 3], ['weed', 3]] },
-  { id: 'nui', name: 'Núi đá', x: -6, z: -23, r: 10, mix: [['rock', 12], ['tree', 8], ['berry', 4], ['pebble', 6], ['branch', 3]] },
-  { id: 'bai', name: 'Bãi bồi', x: 3, z: 22, r: 9, mix: [['clay', 10], ['grass', 9], ['weed', 4], ['berry', 3], ['pebble', 3]] },
-  { id: 'rach', name: 'Bờ rạch', x: -23, z: 3, r: 11, mix: [['palm', 5], ['grass', 4], ['weed', 3], ['tree', 3], ['ban', 4], ['nipa', 4]] },
-  { id: 'rung', name: 'Rừng dừa tre', x: 29, z: -9, r: 10, mix: [['palm', 12], ['bamboo', 14], ['tree', 10], ['branch', 4], ['berry', 3]] },
-  { id: 'dong', name: 'Đồng lúa', x: 25, z: 8, r: 9, mix: [['grass', 10], ['berry', 4], ['weed', 5]] },
+  { id: 'lang', name: 'Làng', x: 0, z: 2, r: 15, mix: [['tree', 3, 3], ['rock', 3, 3], ['bamboo', 2, 2], ['berry', 3, 1], ['grass', 6, 3], ['weed', 8, 4], ['branch', 7, 1], ['pebble', 5, 1]] },
+  { id: 'tre', name: 'Lũy tre', x: -19, z: -9, r: 7, mix: [['bamboo', 9, 3], ['weed', 3, 3], ['branch', 4, 1]] },
+  { id: 'nui', name: 'Núi đá', x: -6, z: -23, r: 10, mix: [['rock', 12, 4], ['tree', 8, 4], ['berry', 4, 2], ['pebble', 6, 1], ['branch', 3, 1]] },
+  { id: 'bai', name: 'Bãi bồi', x: 6, z: 18, r: 6, mix: [['clay', 10, 5], ['grass', 9, 5], ['weed', 4, 2], ['berry', 3, 1], ['pebble', 3, 1]] },
+  { id: 'rach', name: 'Bờ rạch', x: -23, z: 3, r: 11, mix: [['palm', 5, 3], ['grass', 4, 2], ['weed', 3, 3], ['tree', 3, 3], ['branch', 2, 1]] },
+  { id: 'rung', name: 'Rừng dừa tre', x: 29, z: -9, r: 10, mix: [['palm', 12, 4], ['bamboo', 12, 4], ['tree', 10, 5], ['berry', 3, 1], ['branch', 4, 1]] },
+  { id: 'dong', name: 'Đồng lúa', x: 25, z: 8, r: 9, mix: [['grass', 10, 5], ['berry', 4, 1], ['weed', 5, 3]] },
 ];
-// vật thể ven nước (dọc sông và quanh rạch)
-export const WATER_MIX = { river: [['snail', 12], ['reed', 14], ['nipa', 10], ['clay', 6], ['dien', 8], ['lily', 8], ['ban', 4]], lake: [['snail', 6], ['reed', 8], ['nipa', 6], ['ban', 3], ['clay', 4], ['dien', 4], ['lily', 4]] };
+// Loài ven nước: [loại, tổng số, cỡ nhóm, f nhỏ, f lớn]; f = khoảng cách tới tâm sông / nửa bề rộng sông (1.17 ≈ mép nước lúc nước nổi). Mọc thành mảng dọc bờ.
+export const WATER_MIX = {
+  river: [['nipa', 12, 4, 1.2, 1.3], ['reed', 14, 5, 1.2, 1.45], ['ban', 4, 2, 1.25, 1.5], ['clay', 8, 4, 1.2, 1.4], ['snail', 12, 3, 1.18, 1.24], ['dien', 8, 4, 1.25, 1.55], ['lily', 10, 3, 1.17, 1.22], ['pebble', 6, 3, 1.25, 1.5]],
+  lake: [['nipa', 6, 3, 1.32, 1.45], ['reed', 8, 4, 1.32, 1.5], ['ban', 3, 2, 1.35, 1.5], ['clay', 4, 2, 1.32, 1.45], ['snail', 6, 3, 1.3, 1.36], ['dien', 4, 2, 1.35, 1.5], ['lily', 4, 2, 1.28, 1.34]],
+};
+// khoảng cách tối thiểu giữa hai vật cùng chỗ (cây to chiếm chỗ hơn)
+export const OBJ_GAP = { tree: 1.9, palm: 1.9, bamboo: 1.7, rock: 1.2, berry: 1.2, nipa: 1.3, ban: 1.8, reed: 1.0 };
+// loài chỉ mọc cạnh loài khác
+export const OBJ_NEAR = { branch: ['tree', 'berry', 'bamboo', 'palm', 'ban'], pebble: ['rock'] };
 export const START_RES = { go: 4, da: 3, soi: 3, tre: 4 };
 
 // Sông Mê Kông thu nhỏ: đường tâm Catmull-Rom qua các điểm (x, z), chảy từ đông bắc xuống đông nam. half = nửa bề rộng ở mực nước trung bình.
