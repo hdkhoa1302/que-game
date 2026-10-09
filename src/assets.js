@@ -4,7 +4,7 @@ import * as THREE from 'three';
 const DATA = {}, GEO = {};
 
 export const loadAssets = async () => {
-  const r = await fetch(`${import.meta.env.BASE_URL}models/mekong2.json`);
+  const r = await fetch(`${import.meta.env.BASE_URL}models/mekong2.json`, { cache: 'no-cache' });
   Object.assign(DATA, await r.json());
 };
 
