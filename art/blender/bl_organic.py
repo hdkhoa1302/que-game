@@ -3,6 +3,7 @@ _DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() and
 exec(open(os.path.join(_DIR, 'bl_helpers2.py')).read())
 import math as _m
 if 'den' not in PAL: PAL['den'] = 0x1e1e22
+if 'dua_qua' not in PAL: PAL['dua_qua'] = 0x5a3318
 def drop(*names):
     for n in names:
         o = bpy.data.objects.get(n)
@@ -61,21 +62,77 @@ b.ball('trau_toi', (0, 1.25, 0.52), (0.07, 0.07, 0.14), 6, 4)
 V2.append(b.done((0, oy, 0)))
 # ---------- Cây bần ----------
 b = S('ban', 60)
+b.cyl('bun', (0, 0, 0.04), 0.85, 1.1, 0.08, 8)
+pts_ban = [Vector((0.22 * _m.sin(k / 7 * 2.5) - 0.08 * (k / 7), 0.85 * ((k / 7) ** 1.35), 0.08 + (k / 7) * 2.35)) for k in range(8)]
 for k in range(7):
-    t = k / 6; b.cyl('go_cu', (0.1 * _m.sin(t * 2.2), 0.06 * t, 0.15 + t * 2.0), 0.34 * (1 - t) + 0.12, 0.34 * (1 - t) + 0.08, 0.5, 8, (6 * _m.sin(t * 3), 6 * _m.cos(t * 2), 0))
-for i in range(11):
-    a = i / 11 * _m.pi * 2; r = 0.5 + 0.22 * (i % 2); b.cone('go_toi', (_m.cos(a) * r, _m.sin(a) * r, 0.24), 0.045, 0.55 + 0.2 * (i % 3), 5, (-_m.sin(a) * 6, _m.cos(a) * 6, 0))
-for i in range(4):
-    a = i * 1.57 + 0.4; b.cyl('go_cu', (_m.cos(a) * 0.45, _m.sin(a) * 0.45, 2.3), 0.09, 0.14, 1.2, 6, (-_m.sin(a) * 38, _m.cos(a) * 38, 0))
-for i, (px, py, pz, pr) in enumerate([(0, 0, 3.2, 1.15), (0.85, 0.3, 2.85, 0.85), (-0.8, -0.35, 2.95, 0.9), (0.15, -0.9, 2.8, 0.75), (-0.5, 0.8, 2.9, 0.8), (0.1, 0.1, 3.75, 0.7)]):
-    b.lumpy('la_xanh', (px, py, pz), pr, 2, 0.16, 10 + i, 0.72, 'la_non')
+    p1, p2 = pts_ban[k], pts_ban[k + 1]
+    diff = p2 - p1; mid = (p1 + p2) * 0.5
+    rot = [_m.degrees(a) for a in diff.to_track_quat('Z', 'Y').to_euler('XYZ')]
+    t1, t2 = k / 7, (k + 1) / 7
+    b.cyl('go_toi' if k % 2 == 0 else 'go_cu', mid, 0.42 * (1 - 0.65 * t1) + 0.08, 0.42 * (1 - 0.65 * t2) + 0.08, diff.length * 1.05, 8, rot)
+
+rr_ban = random.Random(42)
+for i in range(28):
+    a = i / 28.0 * _m.pi * 2 + rr_ban.uniform(-0.15, 0.15)
+    r = 0.45 + 0.95 * (((i * 7) % 11) / 10.0)
+    h = 0.22 + 0.14 * (((i * 5) % 7) / 6.0)
+    px, py = _m.cos(a) * r, _m.sin(a) * r
+    b.cyl('bun', (px, py, 0.03), 0.045, 0.035, 0.06, 5)
+    b.cone('go_toi' if i % 2 == 0 else 'go_cu', (px, py, h * 0.5 + 0.04), 0.035, h, 5, (rr_ban.uniform(-8, 8), rr_ban.uniform(-8, 8), 0))
+
+c_branches = [
+    ((0.2, 0.8, 1.8), (0.35, 1.6, 2.1), 0.12, 0.07, 'go_cu'),
+    ((-0.2, 0.5, 2.0), (-0.95, 0.7, 2.2), 0.11, 0.06, 'go_toi'),
+    ((0.15, 0.4, 2.1), (0.9, 0.3, 2.2), 0.10, 0.06, 'go_cu'),
+    ((-0.05, 0.2, 2.2), (-0.1, -0.7, 2.4), 0.10, 0.06, 'go_toi'),
+    ((0.05, 0.6, 2.35), (0.1, 0.9, 3.1), 0.09, 0.05, 'go_cu'),
+]
+for p1, p2, r1, r2, c in c_branches:
+    diff = Vector(p2) - Vector(p1); mid = (Vector(p1) + Vector(p2)) * 0.5
+    rot = [_m.degrees(a) for a in diff.to_track_quat('Z', 'Y').to_euler('XYZ')]
+    b.cyl(c, mid, r1, r2, diff.length * 1.05, 6, rot)
+
+for i, (px, py, pz, pr, psq) in enumerate([
+    (0.35, 1.75, 2.2, 0.95, 0.36), (-1.0, 0.75, 2.3, 0.88, 0.36), (0.95, 0.35, 2.3, 0.85, 0.36),
+    (-0.1, -0.75, 2.45, 0.82, 0.38), (0.2, 1.15, 2.85, 1.12, 0.40), (-0.25, 0.35, 3.15, 1.18, 0.42),
+    (0.1, 0.75, 3.65, 0.85, 0.40)
+]):
+    b.lumpy('la_xanh', (px, py, pz), pr, 2, 0.15, 20 + i, psq, 'la_non')
 V2.append(b.done((4, oy, 0)))
 # ---------- Dừa nước ----------
 b = S('dua_nuoc', 70)
-rr = random.Random(4)
-for i in range(11):
-    a = i / 11 * 360 + rr.uniform(-8, 8); b.ribbon('la_xanh' if i % 3 else 'la_dua', (0, 0, 0.3), a, 1.9 + rr.uniform(-0.25, 0.3), 0.2, 0.55, 7, 0.4)
-b.ball('go_nau', (0, 0, 0.16), (0.2, 0.2, 0.2), 8, 5); b.ball('rom_toi', (0.12, 0.08, 0.34), (0.13, 0.13, 0.13), 7, 4)
+b.cyl('bun', (0, 0, 0.04), 0.55, 0.72, 0.08, 8)
+b.ball('dat', (0, 0, 0.12), (0.42, 0.42, 0.16), 7, 4)
+for j in range(7):
+    a = _m.radians(j * (360 / 7) + 15)
+    b.cyl('go_cu', (_m.cos(a) * 0.22, _m.sin(a) * 0.22, 0.16), 0.065, 0.045, 0.26, 5, (-_m.sin(a) * 22, _m.cos(a) * 22, 0))
+
+rr_dua = random.Random(12)
+fronds = [
+    (25, 2.5, 0.22, 0.38, 0.58, 'la_non'), (115, 2.6, 0.22, 0.36, 0.60, 'la_xanh'),
+    (205, 2.5, 0.21, 0.38, 0.58, 'la_non'), (295, 2.7, 0.23, 0.35, 0.62, 'la_xanh'),
+    (55, 2.3, 0.25, 0.52, 0.46, 'la_dua'), (90, 2.4, 0.26, 0.55, 0.44, 'la_xanh'),
+    (150, 2.3, 0.25, 0.54, 0.45, 'la_dua'), (180, 2.4, 0.26, 0.52, 0.47, 'la_xanh'),
+    (240, 2.3, 0.24, 0.55, 0.45, 'la_dua'), (270, 2.5, 0.26, 0.52, 0.46, 'la_xanh'),
+    (330, 2.3, 0.25, 0.54, 0.44, 'la_dua'),
+    (0, 2.1, 0.22, 0.68, 0.32, 'la_dua_kho'), (75, 2.0, 0.21, 0.70, 0.30, 'la_dua'),
+    (165, 2.1, 0.22, 0.68, 0.32, 'la_dua_kho'), (255, 2.0, 0.21, 0.70, 0.30, 'la_dua'),
+]
+for ang, leng, wid, bend, lift, col in fronds:
+    b.ribbon(col, (0, 0, 0.24), ang + rr_dua.uniform(-6, 6), leng, wid, bend, 7, lift)
+
+p_cuong1, p_cuong2 = Vector((0.15, 0.12, 0.22)), Vector((0.38, 0.30, 0.36))
+d_cuong = p_cuong2 - p_cuong1
+rot_c = [_m.degrees(a) for a in d_cuong.to_track_quat('Z', 'Y').to_euler('XYZ')]
+b.cyl('go_toi', (p_cuong1 + p_cuong2) * 0.5, 0.045, 0.038, d_cuong.length * 1.1, 6, rot_c)
+
+c_buah = p_cuong2 + d_cuong.normalized() * 0.12
+b.ball('dua_qua', c_buah, (0.19, 0.19, 0.17), 7, 5)
+for k in range(16):
+    zf = 0.85 - (k / 15.0) * 1.7; rf = _m.sqrt(max(0.01, 1.0 - zf * zf)); phi = k * 2.399963
+    dir_g = Vector((rf * _m.cos(phi), rf * _m.sin(phi), zf)).normalized()
+    rot_g = [_m.degrees(a) for a in dir_g.to_track_quat('Z', 'Y').to_euler('XYZ')]
+    b.cone('go_nau' if k % 2 == 0 else 'dua_qua', c_buah + dir_g * 0.16, 0.038, 0.09, 4, rot_g)
 V2.append(b.done((8, oy, 0)))
 # ---------- Lục bình ----------
 b = S('luc_binh', 60)
