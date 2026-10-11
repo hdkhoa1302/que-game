@@ -1,6 +1,6 @@
 import { S, save, tick, add, bedReady, trapState, questDone, reset } from './state.js';
 import { FISH, CROPS, GRAIN, BAIT, TRAP_TIMES, UP, ANIMAL, QUESTS, PHASES, SP, RES, BUILD, LU_CAP, TRAP_MOD, TOOLS, OBJ, TIER_NAME, TIME_MUL, YIELD_MUL, isHighTide } from './data.js';
-import { phaseAt, dayAt, capOf, addAnimal } from './sim.js';
+import { phaseAt, dayAt, capOf, addAnimal, isFlooded } from './sim.js';
 import { founder, mulberry32 } from './genes.js';
 import { sfx, buzz, unlock } from './sfx.js';
 import {
@@ -76,6 +76,52 @@ const pickFish = (deep = false) => {
 };
 
 const spend = (n) => (S.coins >= n ? ((S.coins -= n), true) : false);
+const cnt = (sp) => S.animals.filter((a) => a.sp === sp).length;
+
+const F = { on: false };
+const fishCard = (html) => { const el = $('#fish'); el.hidden = false; el.innerHTML = `<div class="card">${html}</div>`; };
+const fishEnd = () => { F.on = false; sync(); cancelAnimationFrame(F.raf); clearTimeout(F.t); world.bobber(false); $('#fish').hidden = true; };
+const fishIdle = () => fishCard(`<h3>🎣 Cắm câu</h3><p>Quăng cần, đợi phao nhúng rồi chạm thật nhanh.</p><button class="btn big" data-a="cast">Quăng cần</button><p><button class="btn gray" data-a="fishend">Thôi</button></p>`);
+const startFishing = () => { close(); F.on = true; sync(); fishIdle(); };
+const cast = () => {
+  sfx.splash(); world.bobber(true); fishCard(`<h3>Đợi cá cắn…</h3><p>🎣 Phao đang nổi, kiên nhẫn nhé.</p><button class="btn gray" data-a="fishend">Thu cần</button>`);
+  F.t = setTimeout(() => {
+    sfx.bite(); buzz(80); world.bobber(true, true);
+    fishCard(`<h3>🐟 CÁ CẮN!</h3><button class="btn red big" style="font-size:24px;padding:22px" data-a="hook">KÉO!</button>`);
+    F.t = setTimeout(() => { sfx.fail(); world.bobber(true); fishCard(`<h3>Cá chạy mất 😢</h3><button class="btn big" data-a="cast">Quăng lại</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`); }, 1500);
+  }, (2000 + Math.random() * 3500) / (1 + 0.12 * (S.rod - 1)));
+};
+const hook = () => {
+  clearTimeout(F.t); buzz(40);
+  const fish = pickFish(), H = 150, ch = 42 + 18 * (S.rod - 1);
+  let cy = 0, cv = 0, fy = H / 2, ft = H / 2, tt = 0, prog = 30, hold = false, last = performance.now();
+  fishCard(`<h3>Giữ nút để thanh xanh đuổi theo cá</h3>
+    <div id="reel"><div id="track"><div id="catcher"></div><div id="fishy">${fish.icon}</div></div><div id="prog"><i></i></div><button id="hold">GIỮ</button></div>`);
+  const hb = $('#hold'), cat = $('#catcher'), fi = $('#fishy'), pr = $('#prog i');
+  const set = (v) => (e) => { hold = v; hb.classList.toggle('on', v); if (e.pointerId != null && v) hb.setPointerCapture?.(e.pointerId); };
+  hb.addEventListener('pointerdown', set(true)); hb.addEventListener('pointerup', set(false));
+  hb.addEventListener('pointercancel', set(false)); hb.addEventListener('pointerleave', set(false));
+  cat.style.height = ch + 'px';
+  const loop = (now) => {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    cv += (hold ? 560 : -480) * dt; cv = Math.max(-300, Math.min(300, cv)); cy += cv * dt;
+    if (cy < 0) { cy = 0; cv = 0; } if (cy > H - ch) { cy = H - ch; cv = 0; }
+    tt -= dt; if (tt <= 0) { ft = 12 + Math.random() * (H - 24); tt = (0.5 + Math.random() * 0.9) / fish.speed; }
+    fy += (ft - fy) * Math.min(1, dt * 3 * fish.speed);
+    const inside = fy >= cy && fy <= cy + ch;
+    prog += (inside ? 26 : -20 * (0.6 + fish.speed * 0.4)) * dt;
+    cat.style.bottom = cy + 'px'; fi.style.bottom = fy - 11 + 'px'; pr.style.height = Math.max(0, Math.min(100, prog)) + '%';
+    if (prog >= 100) return caught(fish);
+    if (prog <= 0) { sfx.fail(); buzz(120); fishCard(`<h3>Cá thoát rồi 😢</h3><button class="btn big" data-a="cast">Quăng lại</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`); return; }
+    F.raf = requestAnimationFrame(loop);
+  };
+  F.raf = requestAnimationFrame(loop);
+};
+const caught = (fish) => {
+  add('fish', fish.id); S.stats.fish++; sfx.ok(); buzz([30, 40, 30]);
+  fishCard(`<div style="font-size:56px">${fish.icon}</div><h3>Được ${fish.name}!</h3><p>Bán được khoảng ${coin(Math.round(fish.price * (1)))}</p><button class="btn big" data-a="cast">Quăng tiếp</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`);
+  world.bobber(false); after();
+};
 
 const ACT = {
   close,
@@ -255,51 +301,6 @@ const harvest = (id) => {
     H.raf = requestAnimationFrame(loop);
   };
   H.raf = requestAnimationFrame(loop);
-};
-
-const F = { on: false };
-const fishCard = (html) => { const el = $('#fish'); el.hidden = false; el.innerHTML = `<div class="card">${html}</div>`; };
-const fishEnd = () => { F.on = false; sync(); cancelAnimationFrame(F.raf); clearTimeout(F.t); world.bobber(false); $('#fish').hidden = true; };
-const fishIdle = () => fishCard(`<h3>🎣 Cắm câu</h3><p>Quăng cần, đợi phao nhúng rồi chạm thật nhanh.</p><button class="btn big" data-a="cast">Quăng cần</button><p><button class="btn gray" data-a="fishend">Thôi</button></p>`);
-const startFishing = () => { close(); F.on = true; sync(); fishIdle(); };
-const cast = () => {
-  sfx.splash(); world.bobber(true); fishCard(`<h3>Đợi cá cắn…</h3><p>🎣 Phao đang nổi, kiên nhẫn nhé.</p><button class="btn gray" data-a="fishend">Thu cần</button>`);
-  F.t = setTimeout(() => {
-    sfx.bite(); buzz(80); world.bobber(true, true);
-    fishCard(`<h3>🐟 CÁ CẮN!</h3><button class="btn red big" style="font-size:24px;padding:22px" data-a="hook">KÉO!</button>`);
-    F.t = setTimeout(() => { sfx.fail(); world.bobber(true); fishCard(`<h3>Cá chạy mất 😢</h3><button class="btn big" data-a="cast">Quăng lại</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`); }, 1500);
-  }, (2000 + Math.random() * 3500) / (1 + 0.12 * (S.rod - 1)));
-};
-const hook = () => {
-  clearTimeout(F.t); buzz(40);
-  const fish = pickFish(), H = 150, ch = 42 + 18 * (S.rod - 1);
-  let cy = 0, cv = 0, fy = H / 2, ft = H / 2, tt = 0, prog = 30, hold = false, last = performance.now();
-  fishCard(`<h3>Giữ nút để thanh xanh đuổi theo cá</h3>
-    <div id="reel"><div id="track"><div id="catcher"></div><div id="fishy">${fish.icon}</div></div><div id="prog"><i></i></div><button id="hold">GIỮ</button></div>`);
-  const hb = $('#hold'), cat = $('#catcher'), fi = $('#fishy'), pr = $('#prog i');
-  const set = (v) => (e) => { hold = v; hb.classList.toggle('on', v); if (e.pointerId != null && v) hb.setPointerCapture?.(e.pointerId); };
-  hb.addEventListener('pointerdown', set(true)); hb.addEventListener('pointerup', set(false));
-  hb.addEventListener('pointercancel', set(false)); hb.addEventListener('pointerleave', set(false));
-  cat.style.height = ch + 'px';
-  const loop = (now) => {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    cv += (hold ? 560 : -480) * dt; cv = Math.max(-300, Math.min(300, cv)); cy += cv * dt;
-    if (cy < 0) { cy = 0; cv = 0; } if (cy > H - ch) { cy = H - ch; cv = 0; }
-    tt -= dt; if (tt <= 0) { ft = 12 + Math.random() * (H - 24); tt = (0.5 + Math.random() * 0.9) / fish.speed; }
-    fy += (ft - fy) * Math.min(1, dt * 3 * fish.speed);
-    const inside = fy >= cy && fy <= cy + ch;
-    prog += (inside ? 26 : -20 * (0.6 + fish.speed * 0.4)) * dt;
-    cat.style.bottom = cy + 'px'; fi.style.bottom = fy - 11 + 'px'; pr.style.height = Math.max(0, Math.min(100, prog)) + '%';
-    if (prog >= 100) return caught(fish);
-    if (prog <= 0) { sfx.fail(); buzz(120); fishCard(`<h3>Cá thoát rồi 😢</h3><button class="btn big" data-a="cast">Quăng lại</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`); return; }
-    F.raf = requestAnimationFrame(loop);
-  };
-  F.raf = requestAnimationFrame(loop);
-};
-const caught = (fish) => {
-  add('fish', fish.id); S.stats.fish++; sfx.ok(); buzz([30, 40, 30]);
-  fishCard(`<div style="font-size:56px">${fish.icon}</div><h3>Được ${fish.name}!</h3><p>Bán được khoảng ${coin(Math.round(fish.price * (1)))}</p><button class="btn big" data-a="cast">Quăng tiếp</button><p><button class="btn gray" data-a="fishend">Xong</button></p>`);
-  world.bobber(false); after();
 };
 
 const drain = () => {
