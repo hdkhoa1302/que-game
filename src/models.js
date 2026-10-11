@@ -205,3 +205,12 @@ export const playerB = () => {
   g.add(body, legL, legR, blob(0.32)); g.userData = { body, legL, legR };
   return g;
 };
+export const boatB = () => fromBlender('xuong');
+export const traderB = () => fromBlender('ghe_cho');
+export const buffaloB = () => fromBlender('trau');
+export const arborB = () => fromBlender('gian_bau');
+export const hammockB = () => fromBlender('vong');
+export const hutB = () => fromBlender('choi');
+export const altarB = () => fromBlender('ban_thien');
+export const hyacinthB = () => fromBlender('luc_binh');
+

@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { S, tick, stageOf, bedReady, trapState, save, offlineSummary } from './state.js';
-import { CROPS, PHASES, WEATHER, SP, OBJ, TOOLS, WALK_R, STEP_MS, DAY_STEPS, YEAR_STEPS } from './data.js';
-import { PADDY, PLOTS, riverK } from './data.js';
-import { genObjects, objAvail, zoneAt, keepOut, LAKE, inEll, RS, riverAt, riverPoint, shallowAt } from './objs.js';
+import { CROPS, PHASES, WEATHER, SP, OBJ, TOOLS, WALK_R, STEP_MS, DAY_STEPS, YEAR_STEPS, riverK } from './data.js';
+import { genObjects, objAvail, zoneAt, LAKE, inEll, RS, riverAt, riverPoint, shallowAt } from './objs.js';
 import { phaseAt, levelAt, stepF, isFlooded, lifeStage, dayAt } from './sim.js';
 import { colorOf, avg } from './genes.js';
 import * as M from './models.js';
 import * as game from './game.js';
 import { sfx } from './sfx.js';
+import { setupInput } from './input.js';
+import { initFx } from './fx.js';
+import { initTerrain } from './terrain.js';
 
-// ---------- Renderer / camera ----------
 const canvas = document.querySelector('#c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'low-power' });
 const scene = new THREE.Scene();
@@ -30,78 +31,15 @@ const placeCam = () => {
 };
 
 const sky = new THREE.Color(), SKY = [new THREE.Color(0x9fd8f0), new THREE.Color(0x101c40)];
-const hemi = new THREE.HemisphereLight(0xffffff, 0x8fb070, 1);
-const sun = new THREE.DirectionalLight(0xfff2d6, 1.1); sun.position.set(-8, 14, 6);
-const lamp = new THREE.PointLight(0xffa850, 0, 9, 1.5);
-scene.add(hemi, sun, lamp);
-scene.fog = new THREE.Fog(0x9fd8f0, 30, 62);
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8fb070, 1), sun = new THREE.DirectionalLight(0xfff2d6, 1.1), lamp = new THREE.PointLight(0xffa850, 0, 9, 1.5);
+sun.position.set(-8, 14, 6); scene.add(hemi, sun, lamp); scene.fog = new THREE.Fog(0x9fd8f0, 30, 62);
 addEventListener('resize', fit); fit(); placeCam();
 
-// ---------- Tĩnh: nền, cây, hàng rào (gộp 1 mesh) ----------
 const rnd = (() => { let a = 7; return () => ((a = (a * 16807) % 2147483647) - 1) / 2147483646; })();
-let kR = riverK(0.45); // hệ số bề rộng sông theo mực nước (cập nhật mỗi khung hình)
-{
-  const b = new M.B();
-  b.cyl(0x6fb65a, [0, -0.25, 0], 58, 58.4, 0.5, 40);
-  for (let i = 0; i < 60; i++) { const x = (rnd() - 0.5) * 100, z = (rnd() - 0.5) * 100; if (!keepOut(x, z)) b.ball(i % 2 ? 0x7cc467 : 0x5fa84d, [x, 0, z], [1 + rnd() * 2, 0.12, 1 + rnd() * 2], 6); }
-  for (let i = 0; i < 28; i++) { const an = (i / 28) * 6.283 + rnd() * 0.2, r = 38 + rnd() * 12, h = 1.2 + rnd() * 1.5; b.ball([0x4f8a45, 0x5a9a4e, 0x3f7a38, 0x6a9a55][i % 4], [Math.cos(an) * r, 0, Math.sin(an) * r], [h * 2.5, h * 0.45, h * 2.5], 6); } // rặng cây rậm chân trời
-  // đường đất: nhà → vườn → chợ
-  [[-4, -2.6], [-3.4, -1.2], [-2.6, 0.4], [-1, 1], [0.6, 2.4], [1.8, 4.2], [3.2, 5.4], [3.6, 3.2], [3.0, 1.4], [2.4, -0.4]].forEach(([x, z]) => b.cyl(0xd2b27a, [x, 0.01, z], 0.6, 0.6, 0.03, 8));
-  // hàng rào sân gà vịt
-  M.fence(b, -4.6, 8.4, 6, Math.PI / 2); M.fence(b, -1.6, 10.6, 6, 0); M.fence(b, 1.8, 7.6, 4.5, Math.PI / 2);
-  M.fence(b, -4.4, 4.2, 5, 0); M.fence(b, 2.4, 4.4, 4, 0);
-  scene.add(b.mesh());
-}
+const RN = RS.length; let kR = riverK(0.45);
+const { shapeRiver, waterMat, riverTex, zone, dockM, cauM, oapM, luM, phanM, heap, BENCH, benchM, plotMeshes } = initTerrain({ scene, rnd, RN, riverPoint });
+shapeRiver(kR);
 
-// ---------- Sông: dải nước có dòng chảy, bờ bùn, dải nước nông để đặt lờ ----------
-const RN = RS.length;
-const ribbonGeo = (uv) => {
-  const g = new THREE.BufferGeometry(), idx = [];
-  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(RN * 6), 3));
-  g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(RN * 6).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
-  if (uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(RN * 4).map((_, i) => (i % 2 ? RS[i >> 2].L / 6 : (i >> 1) & 1)), 2));
-  for (let i = 0; i < RN - 1; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
-  g.setIndex(idx); return g;
-};
-// lo/hi: lệch ngang theo nửa bề rộng (−1..1 là lòng sông); y: độ cao
-const fillRibbon = (g, k, lo, hi, y) => {
-  const p = g.attributes.position.array;
-  for (let i = 0; i < RN; i++) { const q = RS[i], h = q.half * k; p.set([q.x + q.nx * h * lo, y, q.z + q.nz * h * lo, q.x + q.nx * h * hi, y, q.z + q.nz * h * hi], i * 6); }
-  g.attributes.position.needsUpdate = true; g.computeBoundingSphere();
-};
-const riverTex = (() => {
-  const c = document.createElement('canvas'); c.width = 64; c.height = 128; const g = c.getContext('2d');
-  g.fillStyle = '#8e5932'; g.fillRect(0, 0, 64, 128); // nền nước đỏ phù sa Mê Kông
-  for (let i = 0; i < 54; i++) {
-    g.strokeStyle = `rgba(207,175,136,${0.08 + rnd() * 0.2})`; g.lineWidth = 1 + rnd() * 2;
-    const x = rnd() * 64, y = rnd() * 128; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 6, y + 8 + rnd() * 26); g.stroke();
-  }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
-})();
-const mudG = ribbonGeo(false), waterG = ribbonGeo(true), zoneG = [ribbonGeo(false), ribbonGeo(false)];
-const waterMat = new THREE.MeshLambertMaterial({ map: riverTex, emissive: 0x241408, side: THREE.DoubleSide });
-scene.add(new THREE.Mesh(mudG, new THREE.MeshLambertMaterial({ color: 0x8a6a45, side: THREE.DoubleSide })), new THREE.Mesh(waterG, waterMat));
-const zone = new THREE.Group(); // dải nước nông sáng lên khi đặt lờ
-for (const g of zoneG) { const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x9be8a0, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide })); m.frustumCulled = false; zone.add(m); }
-zone.visible = false; scene.add(zone);
-const shapeRiver = () => { fillRibbon(mudG, kR, -1.16, 1.16, 0.02); fillRibbon(waterG, kR, -1, 1, 0.06); fillRibbon(zoneG[0], kR, 0.5, 0.97, 0.1); fillRibbon(zoneG[1], kR, -0.97, -0.5, 0.1); };
-shapeRiver();
-const lake = new THREE.Group();
-{
-  const mud = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 24), new THREE.MeshLambertMaterial({ color: 0x8a6a45, flatShading: true })), wat = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 28), new THREE.MeshLambertMaterial({ color: 0x825430, emissive: 0x241408, flatShading: true }));
-  mud.scale.set(LAKE.rx * 1.12, 1, LAKE.rz * 1.12); mud.position.y = 0.02; wat.scale.set(LAKE.rx, 1, LAKE.rz); wat.position.y = 0.05;
-  lake.add(mud, wat); lake.position.set(LAKE.x, 0, LAKE.z); scene.add(lake);
-}
-const dockM = M.dockB(); dockM.position.set(2.6, 0, -1.2); scene.add(dockM);
-const cauM = M.bridgeB(); cauM.position.set(5.1, 0, -1.2); cauM.scale.x = 1.66; cauM.visible = false; scene.add(cauM);
-const oapM = M.nest(); oapM.position.set(-2.2, 0, 6.2); oapM.visible = false; scene.add(oapM);
-const luM = [[-2.6, -3.2], [-1.6, -3.2]].map(([x, z]) => { const m = M.lu(); m.position.set(x, 0, z); m.visible = false; scene.add(m); return m; });
-const phanM = M.manure(); phanM.position.set(-6.6, 0, 7.2); phanM.visible = false; scene.add(phanM);
-const heap = M.manure(); heap.position.set(-6.6, 0, 7.2); heap.scale.setScalar(0.7); heap.visible = false; scene.add(heap); // đống phân thô khi chưa có đống ủ
-const BENCH = new THREE.Vector3(-0.2, 0, -3.2);
-const benchM = M.bench(); benchM.position.copy(BENCH); benchM.rotation.y = 0.3; benchM.visible = false; scene.add(benchM);
-const benchHit = M.hit('bench', 0, 2.0, 1.4, 1.2, [BENCH.x, 0.7, BENCH.z]);
-// ---- vật thể khai thác (instanced theo loại) ----
 const OBJS = genObjects(), OI = {}, dummy = new THREE.Object3D();
 for (const kind of Object.keys(OBJ)) {
   const list = OBJS.filter((o) => o.kind === kind), g = M.objGeo(kind);
@@ -115,75 +53,66 @@ const syncObjs = () => {
   for (const kind in OI) {
     const g = OI[kind], d = OBJ[kind]; let dirty = false;
     for (const o of g.list) {
-      const season = !d.phases || d.phases.includes(ph), ok = season && objAvail(S, o, day, ph), st = !season ? 'off' : ok ? 'full' : g.spent ? 'spent' : 'off'; // thửa ruộng không có hình riêng: do plotMeshes vẽ
+      const season = !d.phases || d.phases.includes(ph), ok = season && objAvail(S, o, day, ph), st = !season ? 'off' : ok ? 'full' : g.spent ? 'spent' : 'off';
       if (st === o.st) continue; o.st = st; dirty = true; o.ok = ok;
       putInst(g.full, o.i, o, st === 'full'); if (g.spent) putInst(g.spent, o.i, o, st === 'spent');
     }
     if (dirty) { g.full.instanceMatrix.needsUpdate = true; if (g.spent) g.spent.instanceMatrix.needsUpdate = true; }
   }
 };
-const pickObj = (cx, cy) => { // chạm gần nhất trong 38px (màn hình) trong các vật thể còn dùng được
-  let best = null, bd = 38;
-  const v = new THREE.Vector3();
+const pickObj = (cx, cy) => {
+  let best = null, bd = 38; const v = new THREE.Vector3();
   for (const o of OBJS) { if (o.st !== 'full') continue; v.set(o.x, 0.5, o.z).project(camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * innerWidth - cx, (1 - v.y) / 2 * innerHeight - cy); if (d < bd) { bd = d; best = o; } }
   return best;
 };
-// ---- ruộng lúa bờ đông: nước, bờ ruộng, 4 thửa (xanh quanh năm, chín vào mùa khô, gặt xong chỉ còn gốc) ----
-const plotMeshes = []; // {id, xanh, chin}
-{
-  const w = PADDY.x1 - PADDY.x0, h = PADDY.z1 - PADDY.z0, cx = (PADDY.x0 + PADDY.x1) / 2, cz = (PADDY.z0 + PADDY.z1) / 2;
-  const mirror = new THREE.Mesh(new THREE.BoxGeometry(w, 0.04, h), new THREE.MeshLambertMaterial({ color: 0x7fb4c4, transparent: true, opacity: 0.8, flatShading: true })); mirror.position.set(cx, 0.03, cz); scene.add(mirror);
-  const bund = new M.B(); for (let i = 0; i <= 2; i++) bund.box(0x8a6a3a, [cx, 0.08, PADDY.z0 + (h * i) / 2], [w + 0.4, 0.16, 0.3]); for (let i = 0; i <= 2; i++) bund.box(0x8a6a3a, [PADDY.x0 + (w * i) / 2, 0.08, cz], [0.3, 0.16, h]);
-  scene.add(bund.mesh());
-  const geo = { xanh: M.fromBlender('lua_xanh').geometry, chin: M.fromBlender('lua_chin').geometry };
-  PLOTS.forEach((pl, j) => {
-    const pts = []; for (let x = pl.x0 + 0.4; x < pl.x1 - 0.2; x += 0.75) for (let z = pl.z0 + 0.4; z < pl.z1 - 0.2; z += 0.75) pts.push([x + (rnd() - 0.5) * 0.2, z + (rnd() - 0.5) * 0.2]);
-    const mk = (g) => { const im = new THREE.InstancedMesh(g, M.MAT, pts.length); im.frustumCulled = false; pts.forEach(([x, z], i) => { dummy.position.set(x, 0, z); dummy.rotation.set(0, rnd() * 6, 0); dummy.scale.setScalar(0.85 + rnd() * 0.3); dummy.updateMatrix(); im.setMatrixAt(i, dummy.matrix); }); scene.add(im); return im; };
-    plotMeshes.push({ j, xanh: mk(geo.xanh), chin: mk(geo.chin) });
-  });
-}
+
 const tint = new THREE.Mesh(new THREE.CircleGeometry(58, 40), new THREE.MeshBasicMaterial({ color: 0xd8b058, transparent: true, opacity: 0, depthWrite: false }));
 tint.rotation.x = -Math.PI / 2; tint.position.y = 0.012; scene.add(tint);
-const RAIN_N = 220, rainPos = new Float32Array(RAIN_N * 3);
-for (let i = 0; i < RAIN_N; i++) rainPos.set([(rnd() - 0.5) * 22, rnd() * 9, (rnd() - 0.5) * 22], i * 3);
-const rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-const rainMat = new THREE.PointsMaterial({ color: 0xcfe6f5, size: 0.09, transparent: true, opacity: 0, depthWrite: false });
-const rain = new THREE.Points(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
+
+const { updateFx } = initFx(scene, rnd);
 const rodM = M.rod(); rodM.rotation.y = Math.PI / 2; rodM.position.set(0.22, 0.15, 0.2); rodM.visible = false;
 const ROD_TIP = new THREE.Vector3();
 
-// clouds
-const clouds = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => { const c = M.cloud(); c.position.set(-40 + i * 11, 6 + (i % 2) * 1.5, -24 + ((i * 7) % 8) * 6); c.scale.setScalar(0.8 + (i % 3) * 0.2); scene.add(c); return c; });
+const hits = [], addHit = (h) => { scene.add(h); hits.push(h); return h; };
+const benchHit = M.hit('bench', 0, 2.0, 1.4, 1.2, [BENCH.x, 0.7, BENCH.z]);
 
-// fireflies
-const FF = 70, ffPos = new Float32Array(FF * 3), ffSeed = [];
-for (let i = 0; i < FF; i++) { const a = rnd() * 6.283, r = 3 + rnd() * 22; ffSeed.push([Math.cos(a) * r, 0.6 + rnd() * 1.4, Math.sin(a) * r, rnd() * 6]); }
-const ffGeo = new THREE.BufferGeometry(); ffGeo.setAttribute('position', new THREE.BufferAttribute(ffPos, 3));
-const ffMat = new THREE.PointsMaterial({ color: 0xfff08a, size: 0.22, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
-const fireflies = new THREE.Points(ffGeo, ffMat); fireflies.frustumCulled = false; scene.add(fireflies);
-
-// ---------- Vật tương tác ----------
-const hits = [];
-const addHit = (h) => { scene.add(h); hits.push(h); return h; };
-
-const HOUSE = new THREE.Vector3(-5.2, 0, -5.2);
-const houseG = new THREE.Group(); houseG.position.copy(HOUSE); houseG.rotation.y = 0.6; scene.add(houseG);
+const HOUSE = new THREE.Vector3(-5.2, 0, -5.2), houseG = new THREE.Group();
+houseG.position.copy(HOUSE); houseG.rotation.y = 0.6; scene.add(houseG);
 addHit(M.hit('house', 0, 3.6, 3.4, 3, [HOUSE.x, 1.6, HOUSE.z]));
 const smoke = [0, 1, 2, 3].map(() => { const s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 5, 4), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false })); houseG.add(s); return s; });
 let houseMesh, houseLv = 0, SM = [0.6, 2.7, 0.3];
-const SMOKE = [[0.6, 2.7, 0.3], [1.1, 3.5, -0.4], [2.7, 2.4, -0.3]]; // chỗ khói bốc lên theo cấp nhà
+const SMOKE = [[0.6, 2.7, 0.3], [1.1, 3.5, -0.4], [2.7, 2.4, -0.3]];
 
 const stall = M.stallB(); stall.position.set(4.2, 0, 6.2); stall.rotation.y = -0.3; scene.add(stall);
 addHit(M.hit('stall', 0, 3.4, 3, 2.2, [4.2, 1.4, 6.2]));
 const stallLabel = M.bubble('🧺'); stallLabel.position.set(4.2, 3.6, 6.2); scene.add(stallLabel);
 
-const COOP = new THREE.Vector3(-0.6, 0, 8.4);
-const coopG = new THREE.Group(); coopG.position.copy(COOP); coopG.rotation.y = 0.15; scene.add(coopG);
+const COOP = new THREE.Vector3(-0.6, 0, 8.4), coopG = new THREE.Group();
+coopG.position.copy(COOP); coopG.rotation.y = 0.15; scene.add(coopG);
 addHit(M.hit('coop', 0, 2.8, 2, 2.2, [COOP.x, 1, COOP.z]));
 let coopMesh, coopLv = 0;
 
-const BEDS = []; // {g, hit, base, key}
-const BED_POS = [[-6, 1.2], [-3.6, 1.2], [-1.2, 1.2], [-6, 3.3], [-3.6, 3.3], [-1.2, 3.3]];
+const MEKONG_ITEMS = [
+  ['altar', -3.8, 0, -3.8, 0, M.altarB, [1.4, 1.8, 1.4, 0.9]],
+  ['hammock', -7.2, 0, -2.5, 0.4, M.hammockB, [2.4, 1.4, 1.4, 0.7]],
+  ['arbor', -7.5, 0, 2.2, 0, M.arborB, [2.8, 2.2, 2.8, 1.1]],
+  ['boat', 3.6, 0.05, -1.0, -0.2, M.boatB, [2.8, 1.2, 1.5, 0.4]],
+  ['trader', 9.5, 0.08, 4.0, 0.35, M.traderB, [3.4, 2.2, 2.0, 1.1]],
+  ['hut', 15.5, 0, 2.5, -0.15, M.hutB, [3.2, 2.6, 2.8, 1.3]],
+  ['buffalo', 18.5, 0, 1.5, -0.8, M.buffaloB, [2.4, 1.8, 1.8, 0.9]]
+];
+const ALTAR = { x: -3.8, z: -3.8 }, HAMMOCK = { x: -7.2, z: -2.5 }, ARBOR = { x: -7.5, z: 2.2 }, BOAT = { x: 3.6, z: -1.0 }, TRADER = { x: 9.5, z: 4.0 }, HUT = { x: 15.5, z: 2.5 }, BUFFALO = { x: 18.5, z: 1.5 };
+for (const [k, x, y, z, ry, fn, [sx, sy, sz, offY]] of MEKONG_ITEMS) {
+  const m = fn(); if (m) { m.position.set(x, y, z); m.rotation.y = ry; scene.add(m); }
+  addHit(M.hit(k, 0, sx, sy, sz, [x, y + offY, z]));
+}
+
+const HYACINTHS = [[8.6, -6.5], [9.8, -1.5], [9.2, 6.0], [10.5, 11.5]].map(([x, z], i) => {
+  const m = M.hyacinthB(); if (!m) return null;
+  m.position.set(x, 0.06, z); m.rotation.y = i * 1.5; scene.add(m); return m;
+}).filter(Boolean);
+
+const BEDS = [], BED_POS = [[-6, 1.2], [-3.6, 1.2], [-1.2, 1.2], [-6, 3.3], [-3.6, 3.3], [-1.2, 3.3]];
 const lockedMat = new THREE.MeshLambertMaterial({ color: 0x8a9a6a, flatShading: true });
 BED_POS.forEach(([x, z], i) => {
   const g = new THREE.Group(); g.position.set(x, 0, z); scene.add(g);
@@ -209,10 +138,7 @@ const mkTrap = () => {
 };
 const rmTrap = (o) => { scene.remove(o.g, o.hit); trapHits.splice(trapHits.indexOf(o.hit), 1); };
 
-// bóng "!" ổ trứng
 const eggBub = M.bubble('🥚'); eggBub.position.set(COOP.x, 2.8, COOP.z); scene.add(eggBub);
-
-// phao + dây câu
 const bobber = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshLambertMaterial({ color: 0xe5483a, emissive: 0x330a06 }));
 const bobPos = new THREE.Vector3(6.4, 0.12, -0.2); bobber.position.copy(bobPos); bobber.visible = false; scene.add(bobber);
 const lineGeo = new THREE.BufferGeometry().setFromPoints([ROD_TIP.clone(), bobPos.clone()]);
@@ -221,7 +147,6 @@ const bobRing = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.38, 20), new THREE.
 bobRing.rotation.x = -Math.PI / 2; bobRing.visible = false; scene.add(bobRing);
 let bobOn = false, bobBite = false;
 
-// ---------- Gà vịt (mỗi cá thể một nhóm, màu/cỡ theo gen) ----------
 const yard = { x0: -4.0, x1: 1.2, z0: 5.2, z1: 7.6 }, riverside = { x0: 3.2, x1: 5.0, z0: 1.8, z1: 4.4 };
 const animals = new Map(), animalHits = [];
 const mkAnimal = (a) => {
@@ -247,7 +172,6 @@ const syncAnimals = () => {
   }
 };
 
-// ---------- refresh(): đồng bộ thế giới theo state ----------
 const world = {
   refresh() {
     if (houseLv !== S.house) { if (houseMesh) houseG.remove(houseMesh); houseMesh = M.houseB(S.house); houseG.add(houseMesh); houseLv = S.house; SM = SMOKE[S.house - 1]; }
@@ -255,7 +179,7 @@ const world = {
     if (coopLv !== coopKey) { if (coopMesh) coopG.remove(coopMesh); coopMesh = M.coop(S.coop, S.builds.chuong); coopG.add(coopMesh); coopLv = coopKey; }
     cauM.visible = !!S.builds.cau; oapM.visible = !!S.builds.oap; luM.forEach((m, i) => (m.visible = i < (S.builds.lu || 0)));
     phanM.visible = !!S.builds.phan; heap.visible = !S.builds.phan && (S.res.phan || 0) >= 3;
-    { const ph = phaseAt(S.world.step), first = OBJS.findIndex((o) => o.kind === 'thua'); for (const p of plotMeshes) { const ripe = OBJS[first + p.j].st === 'full'; p.chin.visible = ripe; p.xanh.visible = ph !== 0; } } // mùa khô: chín, gặt xong thì chỉ còn gốc; mùa khác: lúa xanh
+    { const ph = phaseAt(S.world.step), first = OBJS.findIndex((o) => o.kind === 'thua'); for (const p of plotMeshes) { const ripe = OBJS[first + p.j].st === 'full'; p.chin.visible = ripe; p.xanh.visible = ph !== 0; } }
     syncAnimals(); syncObjs();
     benchM.visible = !!S.builds.ban; { const k = hits.indexOf(benchHit); if (S.builds.ban && k < 0) { scene.add(benchHit); hits.push(benchHit); } else if (!S.builds.ban && k >= 0) { scene.remove(benchHit); hits.splice(k, 1); } }
     BEDS.forEach((o, i) => {
@@ -284,7 +208,7 @@ const world = {
     eggBub.visible = S.eggs.length >= 1;
   },
   bobber(on, bite = false) {
-    if (on && !bobOn) { // phao rơi ra giữa dòng, hướng từ chỗ đứng sang tâm sông
+    if (on && !bobOn) {
       const r = riverAt(P.x, P.z, kR); let vx = r.cx - P.x, vz = r.cz - P.z, m = Math.hypot(vx, vz);
       if (m < 0.6) { const q = riverPoint(r.s, kR); vx = q.nx; vz = q.nz; m = 1; }
       vx /= m; vz /= m; const reach = Math.max(1.4, Math.min(3.8, m - r.half * 0.4)); bobPos.set(P.x + vx * reach, 0.12, P.z + vz * reach); player.rotation.y = Math.atan2(vx, vz);
@@ -299,25 +223,27 @@ const world = {
   onBridge() { return !!S.builds.cau && P.x > 5.9 && onDock(P.x, P.z); },
 };
 
-// ---------- Nhân vật ----------
 const player = M.playerB(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
 const P = player.position;
-const onDock = (x, z) => x > 2.2 && x < (S.builds.cau ? 13.0 : 5.9) && z > -1.9 && z < -0.5; // bến tre, và cầu khỉ nếu đã bắc
-const SOLID = [[HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5], [BENCH.x, BENCH.z, 0.9]];
+const onDock = (x, z) => x > 2.2 && x < (S.builds.cau ? 13.0 : 5.9) && z > -1.9 && z < -0.5;
+const SOLID = [
+  [HOUSE.x, HOUSE.z, 2.3], [4.2, 6.2, 1.7], [COOP.x, COOP.z, 1.5], [BENCH.x, BENCH.z, 0.9],
+  [ALTAR.x, ALTAR.z, 0.7], [ARBOR.x, ARBOR.z, 1.4], [HUT.x, HUT.z, 1.6], [BUFFALO.x, BUFFALO.z, 1.2]
+];
 const inWater = (x, z, sc = 0.97) => { const r = riverAt(x, z, kR); return r.d < r.half * sc; };
 const blocked = (x, z) => (inWater(x, z) && !onDock(x, z)) || inEll(LAKE, x, z, 0.97) || Math.hypot(x, z) > WALK_R || SOLID.some(([a, b, r]) => Math.hypot(x - a, z - b) < r);
-const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4, bench: 2.8, obj: 1.8 };
-const MIND = { trap: 0, coop: 2.0, bed: 1.4, stall: 2.0, house: 2.8, bench: 1.7, obj: 0.9 };
-const objPos = (kind, idx) => kind === 'trap' ? [S.traps[idx].x, S.traps[idx].z] : kind === 'coop' ? [COOP.x, COOP.z] : kind === 'bed' ? BED_POS[idx] : kind === 'stall' ? [4.2, 6.2] : kind === 'bench' ? [BENCH.x, BENCH.z] : kind === 'obj' ? [OBJS[idx].x, OBJS[idx].z] : [HOUSE.x, HOUSE.z];
-let go = null; // {x, z, kind, idx, stuck}
+const REACH = { trap: 4.8, coop: 2.9, bed: 2.4, stall: 3.0, house: 3.4, bench: 2.8, obj: 1.8, altar: 2.4, hammock: 2.6, arbor: 2.8, boat: 3.2, trader: 3.8, hut: 3.0, buffalo: 2.8 };
+const MIND = { trap: 0, coop: 2.0, bed: 1.4, stall: 2.0, house: 2.8, bench: 1.7, obj: 0.9, altar: 1.2, hammock: 1.4, arbor: 1.5, boat: 1.6, trader: 2.0, hut: 1.8, buffalo: 1.6 };
+const objPos = (kind, idx) => kind === 'trap' ? [S.traps[idx].x, S.traps[idx].z] : kind === 'coop' ? [COOP.x, COOP.z] : kind === 'bed' ? BED_POS[idx] : kind === 'stall' ? [4.2, 6.2] : kind === 'bench' ? [BENCH.x, BENCH.z] : kind === 'altar' ? [ALTAR.x, ALTAR.z] : kind === 'hammock' ? [HAMMOCK.x, HAMMOCK.z] : kind === 'arbor' ? [ARBOR.x, ARBOR.z] : kind === 'boat' ? [BOAT.x, BOAT.z] : kind === 'trader' ? [TRADER.x, TRADER.z] : kind === 'hut' ? [HUT.x, HUT.z] : kind === 'buffalo' ? [BUFFALO.x, BUFFALO.z] : kind === 'obj' ? [OBJS[idx].x, OBJS[idx].z] : [HOUSE.x, HOUSE.z];
+let go = null;
 function near(kind, idx = 0) {
   if (kind === 'river') { const r = riverAt(P.x, P.z, kR); return r.d - r.half < 2.4 || onDock(P.x, P.z); }
-  if (kind === 'obj' && OBJS[idx].plot) { const q = OBJS[idx].plot; return P.x > q.x0 - 1.4 && P.x < q.x1 + 1.4 && P.z > q.z0 - 1.4 && P.z < q.z1 + 1.4; } // thửa ruộng: đứng sát mép là gặt được
+  if (kind === 'obj' && OBJS[idx].plot) { const q = OBJS[idx].plot; return P.x > q.x0 - 1.4 && P.x < q.x1 + 1.4 && P.z > q.z0 - 1.4 && P.z < q.z1 + 1.4; }
   const [x, z] = objPos(kind, idx); return Math.hypot(P.x - x, P.z - z) <= REACH[kind];
 }
 function approach(kind, idx = 0) {
   if (near(kind, idx)) { go = null; return game.interact(kind, idx); }
-  if (kind === 'river') { const r = riverAt(P.x, P.z, kR), m = Math.hypot(P.x - r.cx, P.z - r.cz) || 1, e = r.half + 1.0; go = { x: r.cx + ((P.x - r.cx) / m) * e, z: r.cz + ((P.z - r.cz) / m) * e, kind, idx, stuck: 0 }; return; } // ra mép bờ gần nhất
+  if (kind === 'river') { const r = riverAt(P.x, P.z, kR), m = Math.hypot(P.x - r.cx, P.z - r.cz) || 1, e = r.half + 1.0; go = { x: r.cx + ((P.x - r.cx) / m) * e, z: r.cz + ((P.z - r.cz) / m) * e, kind, idx, stuck: 0 }; return; }
   const [ox, oz] = objPos(kind, idx), dx = P.x - ox, dz = P.z - oz, L = Math.hypot(dx, dz) || 1;
   for (let d = MIND[kind]; d < 16; d += 0.4) {
     const x = ox + (dx / L) * d, z = oz + (dz / L) * d;
@@ -327,8 +253,7 @@ function approach(kind, idx = 0) {
 const joy = { x: 0, y: 0 };
 const SPEED = 4.2;
 const stepPlayer = (dt, now) => {
-  let mx = 0, mz = 0;
-  const fx = -Math.sin(az), fz = -Math.cos(az); // hướng nhìn của camera trên mặt đất
+  let mx = 0, mz = 0; const fx = -Math.sin(az), fz = -Math.cos(az);
   if (joy.x || joy.y) { go = null; mx = fx * -joy.y + -fz * joy.x; mz = fz * -joy.y + fx * joy.x; }
   else if (go) {
     const dx = go.x - P.x, dz = go.z - P.z, L = Math.hypot(dx, dz);
@@ -337,8 +262,7 @@ const stepPlayer = (dt, now) => {
   }
   const len = Math.hypot(mx, mz), u = player.userData;
   if (len > 0.05 && !game.isBusy()) {
-    const v = Math.min(1, len) * SPEED * dt, nx = P.x + (mx / len) * v, nz = P.z + (mz / len) * v;
-    const ox = P.x, oz = P.z;
+    const v = Math.min(1, len) * SPEED * dt, nx = P.x + (mx / len) * v, nz = P.z + (mz / len) * v, ox = P.x, oz = P.z;
     if (!blocked(nx, nz)) { P.x = nx; P.z = nz; } else if (!blocked(nx, P.z)) P.x = nx; else if (!blocked(P.x, nz)) P.z = nz;
     if (go) go.stuck = Math.hypot(P.x - ox, P.z - oz) < v * 0.3 ? go.stuck + dt : 0;
     const want = Math.atan2(mx, mz); let d = want - player.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); player.rotation.y += d * Math.min(1, dt * 12);
@@ -347,7 +271,6 @@ const stepPlayer = (dt, now) => {
   CAMT.lerp(P, Math.min(1, dt * 4));
 };
 
-// nút hành động: vật gần nhất trong tầm với
 let nextAct = 0;
 const pickAction = () => {
   const c = [];
@@ -356,83 +279,43 @@ const pickAction = () => {
   BED_POS.forEach(([x, z], i) => { if (i >= S.bedsN) return; const b = S.beds[i]; add('bed', i, x, z, b ? (bedReady(b) ? '🧺' : '💧') : '🌱', b ? (bedReady(b) ? 'Thu hoạch' : 'Tưới') : 'Gieo hạt'); });
   add('coop', 0, COOP.x, COOP.z, '🐔', 'Chuồng'); add('stall', 0, 4.2, 6.2, '🧺', 'Chợ'); add('house', 0, HOUSE.x, HOUSE.z, '🏠', 'Nhà');
   if (S.builds.ban) add('bench', 0, BENCH.x, BENCH.z, '🔨', 'Bàn thợ');
+  add('altar', 0, ALTAR.x, ALTAR.z, '🕯️', 'Bàn Thiên');
+  add('hammock', 0, HAMMOCK.x, HAMMOCK.z, '🌴', 'Nằm võng');
+  add('arbor', 0, ARBOR.x, ARBOR.z, '🥒', 'Giàn bầu');
+  add('boat', 0, BOAT.x, BOAT.z, '🛶', 'Chèo xuồng');
+  add('trader', 0, TRADER.x, TRADER.z, '🍉', 'Ghe chợ');
+  add('hut', 0, HUT.x, HUT.z, '🛖', 'Chòi ruộng');
+  add('buffalo', 0, BUFFALO.x, BUFFALO.z, '🐃', 'Con trâu');
   for (const o of OBJS) { if (o.st !== 'full' || (!o.plot && Math.hypot(P.x - o.x, P.z - o.z) > 2.2) || !near('obj', o.id)) continue; const d = OBJ[o.kind], lack = d.tool && !S.tools[d.tool]; c.push({ kind: 'obj', idx: o.id, icon: lack ? '🔒' : d.icon, label: lack ? `Cần ${TOOLS[d.tool].name}` : d.verb, d: Math.hypot(P.x - o.x, P.z - o.z) - 0.8 }); }
   if (near('river')) { const r = riverAt(P.x, P.z, kR); c.push({ kind: 'river', idx: 0, icon: '🎣', label: 'Câu cá', d: r.d - r.half + 0.5 }); }
   c.sort((a, b) => a.d - b.d);
   game.setAction(!game.isBusy() && !go?.kind ? c[0] || null : null);
 };
 
-// joystick
-{
-  const el = document.querySelector('#joy'), knob = el.firstElementChild; let id = null;
-  const set = (e) => {
-    const r = el.getBoundingClientRect(), R = 38;
-    let x = e.clientX - (r.left + r.width / 2), y = e.clientY - (r.top + r.height / 2); const l = Math.hypot(x, y);
-    if (l > R) { x = (x / l) * R; y = (y / l) * R; }
-    knob.style.transform = `translate(${x}px,${y}px)`; joy.x = x / R; joy.y = y / R;
-  };
-  const end = () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; };
-  el.addEventListener('pointerdown', (e) => { id = e.pointerId; el.setPointerCapture(id); set(e); e.stopPropagation(); });
-  el.addEventListener('pointermove', (e) => { if (e.pointerId === id) set(e); });
-  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
-}
-
-// ---------- Chạm / xoay / zoom ----------
-const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), ptrs = new Map(), gp = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.05), gv = new THREE.Vector3();
-let moved = 0, pinch0 = 0, zoom0 = 1;
-const pdist = () => { const [a, b] = [...ptrs.values()]; return Math.hypot(a.x - b.x, a.y - b.y) || 1; };
-const aim = (e) => { ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera); };
-canvas.addEventListener('pointerdown', (e) => {
-  canvas.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = 0;
-  if (ptrs.size === 2) { pinch0 = pdist(); zoom0 = zoom; moved = 99; }
-});
-canvas.addEventListener('pointermove', (e) => {
-  const p = ptrs.get(e.pointerId); if (!p) return;
-  const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
-  if (ptrs.size === 1) { moved += Math.abs(dx) + Math.abs(dy); if (moved > 12) az -= dx * 0.008; }
-  else if (ptrs.size === 2) zoom = THREE.MathUtils.clamp((zoom0 * pinch0) / pdist(), 0.55, 1.35);
-});
-const endPtr = (e) => ptrs.delete(e.pointerId);
-canvas.addEventListener('pointercancel', endPtr);
-canvas.addEventListener('wheel', (e) => { zoom = THREE.MathUtils.clamp(zoom * (1 + e.deltaY * 0.001), 0.55, 1.35); }, { passive: true });
-canvas.addEventListener('pointerup', (e) => {
-  const tap = ptrs.size === 1 && moved <= 12; endPtr(e);
-  if (!tap) return;
-  aim(e);
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), gp = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.05), gv = new THREE.Vector3();
+const handleTap = (e) => {
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
   if (game.isPlacing()) { if (ray.ray.intersectPlane(gp, gv)) game.placeAt(gv.x, gv.z); return; }
   if (game.isBusy()) return;
   const r = ray.intersectObjects([...animalHits, ...hits, ...trapHits], false)[0];
   if (r && r.object.userData.kind === 'animal') return game.interact('animal', r.object.userData.idx);
   if (r) return approach(r.object.userData.kind, r.object.userData.idx);
   const po = pickObj(e.clientX, e.clientY); if (po) return approach('obj', po.id);
-  if (ray.ray.intersectPlane(gp, gv)) { // chạm vào thửa ruộng
+  if (ray.ray.intersectPlane(gp, gv)) {
     const o = OBJS.find((q) => q.plot && gv.x > q.plot.x0 && gv.x < q.plot.x1 && gv.z > q.plot.z0 && gv.z < q.plot.z1);
     if (o) return o.st === 'full' ? approach('obj', o.id) : game.toast(phaseAt(S.world.step) === 0 ? 'Thửa này đã gặt xong 🌾' : 'Lúa còn xanh, chờ mùa khô mới chín 🌾');
   }
-  if (ray.ray.intersectPlane(gp, gv) && inWater(gv.x, gv.z, 1.05)) return approach('river', 0); // chạm xuống sông: ra bờ rồi câu
+  if (ray.ray.intersectPlane(gp, gv) && inWater(gv.x, gv.z, 1.05)) return approach('river', 0);
   if (ray.ray.intersectPlane(gp, gv) && !blocked(gv.x, gv.z)) go = { x: gv.x, z: gv.z, kind: null, stuck: 0 };
-});
+};
+setupInput({ canvas, camera, joy, getAz: () => az, setAz: (v) => { az = v; }, getZoom: () => zoom, setZoom: (v) => { zoom = v; }, onTap: handleTap });
 
-// ---------- Lấp lánh mặt nước + bướm ----------
-const SPK = Array.from({ length: 14 }, () => {
-  const m = new THREE.Mesh(new THREE.CircleGeometry(0.2, 8), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }));
-  m.rotation.x = -Math.PI / 2; m.userData = { ph: rnd() * 6.283, s: 0.05 + rnd() * 0.9, off: (rnd() - 0.5) * 1.6 }; scene.add(m); return m;
-});
-const BUT = Array.from({ length: 5 }, (_, i) => {
-  const g = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: [0xffd23f, 0xf26b8a, 0xffffff, 0xb487f0, 0xff9f43][i], side: THREE.DoubleSide });
-  const w = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.16, 0.0, 0.12), new THREE.Vector3(0.16, 0.0, -0.12)]);
-  const wl = new THREE.Mesh(w, mat), wr = new THREE.Mesh(w, mat); wr.scale.x = -1; g.add(wl, wr); g.userData = { wl, wr, cx: -4 + rnd() * 9, cz: 1 + rnd() * 7, ph: rnd() * 6.283, r: 1 + rnd() };
-  scene.add(g); return g;
-});
-
-// ---------- Vòng lặp ----------
-const CYC = DAY_STEPS * STEP_MS; // ngày game = 8 phút; f=0 là bình minh, f=0.6 hoàng hôn, còn lại là đêm
+const CYC = DAY_STEPS * STEP_MS;
 const dayFrac = () => (((Date.now() - S.t0) / CYC) % 1 + 1) % 1;
 const dayness = (f) => (f < 0.6 ? THREE.MathUtils.smoothstep(Math.sin((Math.PI * f) / 0.6), 0.02, 0.4) : 0);
 const TINT = [[0xd8b058, 0.24], [0x7fcf5a, 0.08], [0x2f8f50, 0.12], [0x5fa6a0, 0.1]].map(([c, o]) => ({ c: new THREE.Color(c), o }));
-const tmpC = new THREE.Color(), GRAY = new THREE.Color(0x9aa7b0), FOG = new THREE.Color(0xe4ecf0);
+const GRAY = new THREE.Color(0x9aa7b0), FOG = new THREE.Color(0xe4ecf0), SILT = new THREE.Color(0xb8b078);
 let rainK = 0, windK = 0;
-const SILT = new THREE.Color(0xb8b078);
 const clock = new THREE.Clock();
 let first = true, nextSlow = 0, nextClock = 0, nextZone = 0;
 const loop = () => {
@@ -446,27 +329,19 @@ const loop = () => {
     nextClock = now + 2; const W = WEATHER.find((x) => x.id === wx) || WEATHER[0], t = d > 0.75 ? '☀️ ban ngày' : f < 0.6 ? '🌅 sáng/chiều' : '🌙 ban đêm';
     document.querySelector('#clock').innerHTML = `<b>${PHASES[ph].icon} ${PHASES[ph].name}</b><small>Năm ${Math.floor(nf / YEAR_STEPS) + 1} · ${W.icon} ${W.name} · ${t}</small>`;
   }
-  // sông co giãn theo mực nước (dựng lại dải khi đổi đủ nhiều), màu đất theo mùa
-  { const nk = riverK(lvl); if (Math.abs(nk - kR) > 0.004) { kR = nk; shapeRiver(); } }
-  riverTex.offset.y -= dt * 0.35; // dòng chảy
+  { const nk = riverK(lvl); if (Math.abs(nk - kR) > 0.004) { kR = nk; shapeRiver(kR); } }
+  riverTex.offset.y -= dt * 0.35;
   { const fr = (nf / 24) % 1, a = TINT[ph], b = TINT[(ph + 1) % 4], k = THREE.MathUtils.smoothstep(fr, 0.8, 1); tint.material.color.copy(a.c).lerp(b.c, k); tint.material.opacity = a.o + (b.o - a.o) * k; }
-  waterMat.color.setRGB(1, 1, 1).lerp(SILT, ph === 3 ? 0.55 : ph === 2 ? 0.25 : 0); // nước phù sa mùa lũ
-  rainMat.opacity = rainK * 0.75; rain.visible = rainK > 0.02;
-  if (rain.visible) { rain.position.set(CAMT.x, 0, CAMT.z); for (let i = 0; i < RAIN_N; i++) { rainPos[i * 3 + 1] -= dt * 14; if (rainPos[i * 3 + 1] < 0) rainPos[i * 3 + 1] = 8 + rnd() * 2; } rainGeo.attributes.position.needsUpdate = true; }
+  waterMat.color.setRGB(1, 1, 1).lerp(SILT, ph === 3 ? 0.55 : ph === 2 ? 0.25 : 0);
   const dark = 1 - rainK * 0.35;
   hemi.intensity = (0.38 + 0.62 * d) * dark; sun.intensity = (0.2 + 0.95 * d) * (1 - rainK * 0.6); sun.color.setHex(ph === 0 ? 0xffe2a8 : 0xfff2d6); hemi.color.setHex(d > 0.5 ? 0xffffff : 0x8a9be0);
   lamp.intensity = (1 - d) * 4; lamp.position.set(HOUSE.x + 1.5, 1.8, HOUSE.z + 2.2);
-  ffMat.opacity = Math.max(0, 1 - d * 1.6);
-  if (ffMat.opacity > 0.01) for (let i = 0; i < FF; i++) { const s = ffSeed[i]; ffPos[i * 3] = s[0] + Math.sin(now * 0.5 + s[3]) * 0.8; ffPos[i * 3 + 1] = s[1] + Math.sin(now * 0.9 + s[3] * 2) * 0.3; ffPos[i * 3 + 2] = s[2] + Math.cos(now * 0.4 + s[3]) * 0.8; ffGeo.attributes.position.needsUpdate = true; }
-  clouds.forEach((c, i) => { c.position.x += dt * (0.25 + i * 0.05) * (1 + windK * 5); if (c.position.x > 48) c.position.x = -48; });
   waterMat.emissive.setScalar(0.04 + 0.02 * Math.sin(now * 1.5));
-  if (zone.visible && now > nextZone) { nextZone = now + 1; shapeRiver(); }
+  if (zone.visible && now > nextZone) { nextZone = now + 1; shapeRiver(kR); }
 
-  SPK.forEach((m) => { const u = m.userData, q = riverPoint(u.s, kR); m.position.set(q.x + q.nx * u.off * q.half, 0.11, q.z + q.nz * u.off * q.half); const k = Math.max(0, Math.sin(now * 1.6 + u.ph)); m.material.opacity = k ** 6 * 0.9 * d; m.scale.setScalar(0.5 + k); m.rotation.z = now; });
-  BUT.forEach((g, i) => { const u = g.userData; g.visible = d > 0.55; if (!g.visible) return; const t = now * 0.5 + u.ph;
-    g.position.set(u.cx + Math.cos(t) * u.r * 1.6, 0.9 + Math.sin(t * 2.3) * 0.25, u.cz + Math.sin(t * 1.3) * u.r * 1.6); g.rotation.y = -t * 1.3 + 1.2;
-    const f = Math.sin(now * 22 + i) * 0.9; u.wl.rotation.z = f; u.wr.rotation.z = -f; });
-  // gà vịt: vịt chạy đồng ra bờ sông mùa nước nổi ban ngày; con ốm đi chậm
+  updateFx(dt, now, CAMT, rainK, d, RS, riverPoint);
+  HYACINTHS.forEach((m, i) => { m.position.y = 0.06 + Math.sin(now * 1.8 + i * 1.2) * 0.025; });
+
   for (const a of animals.values()) {
     const u = a.userData; u.bob += dt * 8;
     const dx = u.tx - a.position.x, dz = u.tz - a.position.z, dist = Math.hypot(dx, dz), run = u.sp === 'duck' && ph === 3 && d > 0.4, zn = run ? riverside : yard;
@@ -474,19 +349,17 @@ const loop = () => {
       const sp = (u.sp === 'duck' ? 0.5 : 0.7) * dt * (u.isSick ? 0.3 : 1); a.position.x += (dx / dist) * sp; a.position.z += (dz / dist) * sp;
       a.rotation.y = Math.atan2(dx, dz); u.body.position.y = Math.abs(Math.sin(u.bob)) * 0.05; u.body.rotation.x = 0;
     } else {
-      u.wait -= dt; u.body.rotation.x = u.isSick ? 0.7 : Math.sin(u.bob * 1.5) > 0.3 ? 0.5 : 0; // mổ thóc / cúi đầu khi ốm
+      u.wait -= dt; u.body.rotation.x = u.isSick ? 0.7 : Math.sin(u.bob * 1.5) > 0.3 ? 0.5 : 0;
       if (u.wait <= 0) { u.tx = zn.x0 + Math.random() * (zn.x1 - zn.x0); u.tz = zn.z0 + Math.random() * (zn.z1 - zn.z0); u.wait = 1 + Math.random() * 3; if (Math.random() < 0.15) sfx.cluck(); }
     }
     if (u.sick) u.sick.position.y = 1.0 + Math.sin(now * 5) * 0.05;
   }
-  // phao
   if (bobOn) {
     bobber.position.set(bobPos.x, 0.12 + Math.sin(now * 3) * 0.03 - (bobBite ? 0.1 + Math.abs(Math.sin(now * 18)) * 0.08 : 0), bobPos.z);
     ROD_TIP.set(-0.43, 1.69, 0); rodM.updateWorldMatrix(true, false); rodM.localToWorld(ROD_TIP);
     const p = line.geometry.attributes.position; p.setXYZ(0, ROD_TIP.x, ROD_TIP.y, ROD_TIP.z); p.setXYZ(1, bobber.position.x, bobber.position.y, bobber.position.z); p.needsUpdate = true;
     bobRing.position.set(bobPos.x, 0.13, bobPos.z); const k = (now * (bobBite ? 3 : 0.8)) % 1; bobRing.scale.setScalar(0.6 + k * 1.6); bobRing.material.opacity = 0.7 * (1 - k);
   }
-  // lờ + bong bóng nảy
   TRAPS.forEach((o, i) => { if (o.ring.visible) { const k = (now * 0.5 + i * 0.3) % 1; o.ring.scale.setScalar(0.6 + k); o.ring.material.opacity = 0.55 * (1 - k); } if (o.bub.visible) o.bub.position.y = 1.5 + Math.sin(now * 4 + i) * 0.12; });
   BEDS.forEach((o, i) => { if (o.readyBub) o.readyBub.position.y = 1.5 + Math.sin(now * 4 + i) * 0.12; });
   eggBub.position.y = 2.8 + Math.sin(now * 4) * 0.12; stallLabel.position.y = 3.6 + Math.sin(now * 2) * 0.08;
@@ -500,7 +373,6 @@ const loop = () => {
   requestAnimationFrame(loop);
 };
 
-// ---------- Khởi động ----------
 const before = S.last;
 tick(); world.refresh(); game.init(world);
 const msg = offlineSummary(before); if (msg) setTimeout(() => game.toast('Trong lúc bạn vắng: ' + msg, 4500), 900);
