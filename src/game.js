@@ -166,11 +166,26 @@ const ACT = {
   traderbuy(v) {
     if (v === 'bau') { if (!spend(12)) return toast('Không đủ tiền mua giống bầu'); S.inv.crop.bau = (S.inv.crop.bau || 0) + 2; sfx.coin(); toast('Mua thành công 2 quả Bầu hồ lô giống 🥒'); }
   },
-  altarpray() { sfx.ok(); toast('Cầu mưa thuận gió hòa, phúc lành sông nước 🙏'); close(); },
-  hammockrest() { sfx.pop(); toast('Gió chướng vi vu, nằm võng mát rượi 🌴'); close(); },
-  arborharvest() { S.inv.crop.bau = (S.inv.crop.bau || 0) + 2; sfx.pop(); toast('Hái 2 quả bầu hồ lô tươi ngon 🥒'); close(); },
-  hutrest() { sfx.pop(); toast('Nghỉ chân bên chòi lá ngắm đồng lúa chín 🛖'); close(); },
-  buffaloplow() { sfx.ok(); toast('Trâu cày ải đất tơi xốp, mùa sau trúng đậm 🐃'); close(); },
+  altarpray() {
+    const day = dayAt(S.world.step);
+    if (S.blessedDay === day) return toast('Hôm nay đã thắp nhang Bàn Thiên rồi 🙏');
+    S.blessedDay = day; sfx.ok(); toast('Thắp nhang Bàn Thiên: Cầu mưa thuận gió hòa, gia đạo an yên 🙏'); close();
+  },
+  hammockrest() {
+    sfx.pop();
+    for (const a of S.animals) if (a.sickUntil) a.sickUntil = Math.min(a.sickUntil, Date.now() + 20e3);
+    toast('Nằm võng đung đưa, gió mát miệt vườn, gà vịt mau lành bệnh 🌴'); close();
+  },
+  arborharvest() {
+    const day = dayAt(S.world.step);
+    if (S.arborDay === day) return toast('Bầu đang đơm hoa kết trái, mai hẵng hái tiếp nhé 🌱');
+    S.arborDay = day; S.inv.crop.bau = (S.inv.crop.bau || 0) + 2; S.stats.harvested += 2; sfx.pop();
+    toast('Hái 2 quả bầu hồ lô non ngọt nước nấu canh tép đồng 🥒'); close();
+  },
+  hutrest() { sfx.pop(); toast('Nghỉ chân bên chòi lá ngắm đồng lúa chín bao la 🛖'); close(); },
+  buffaloplow() {
+    S.plowed = true; sfx.ok(); toast('Trâu đã cày ải đất tơi xốp, vụ lúa tới năng suất tăng gấp đôi! 🐃'); close();
+  },
   music() { S.sound = !S.sound; $('#snd').firstChild.textContent = S.sound ? '🔊' : '🔇'; },
   reset() { if (confirm('Xoá hết tiến trình và chơi lại?')) reset(); },
 };
@@ -205,7 +220,7 @@ export const interact = (kind, idx) => {
   if (kind === 'trader') return isHighTide(S.world.step) ? open(traderPanel(S)) : toast('Ghe chợ nổi đang xuôi dòng, chờ giờ Nước Lớn ghe cập bến nhé! 🍉');
   if (kind === 'altar') return open(mekongPanels.altar());
   if (kind === 'hammock') return open(mekongPanels.hammock());
-  if (kind === 'arbor') return open(mekongPanels.arbor(true));
+  if (kind === 'arbor') { const day = dayAt(S.world.step); return open(mekongPanels.arbor(S.arborDay !== day)); }
   if (kind === 'hut') return open(mekongPanels.hut());
   if (kind === 'buffalo') return open(mekongPanels.buffalo());
 };
@@ -228,7 +243,9 @@ const harvest = (id) => {
     if (k >= 1) {
       const got = [];
       for (const [r, [lo, hi]] of Object.entries(d.yield)) {
-        const n = Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * (d.tool ? YIELD_MUL[tier] : 1)), add = Math.min(n, 60 - (S.res[r] || 0));
+        let n = Math.round((lo + Math.floor(Math.random() * (hi - lo + 1))) * (d.tool ? YIELD_MUL[tier] : 1));
+        if (o.kind === 'thua' && S.plowed && r === 'thoc') { n *= 2; S.plowed = false; toast('Trâu cày ải kỹ, vụ mùa trúng đậm thóc vàng! 🌾', 3000); }
+        const add = Math.min(n, 60 - (S.res[r] || 0));
         if (r === 'thoc') { S.inv.grain += n; got.push(`+${n}🌾 thóc`); continue; }
         if (add > 0) { S.res[r] = (S.res[r] || 0) + add; got.push(`+${add}${RES[r].icon}`); }
       }

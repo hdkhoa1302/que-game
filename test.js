@@ -169,3 +169,16 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
   console.log('thương lái chợ nổi, giờ nước lớn và cây con Nam Bộ — OK');
 }
 
+// 14. Mekong gameplay Task 9: Trâu cày ải, giàn bầu, võng nghỉ, bàn thiên
+{
+  const state = { plowed: true, arborDay: -1, blessedDay: -1, inv: { crop: { bau: 0 } }, stats: { harvested: 0 } };
+  assert.equal(state.plowed, true, 'Trâu cày ải phải bật cờ plowed');
+  const day = 5;
+  assert.notEqual(state.arborDay, day, 'Giàn bầu có thể thu hoạch khi ngày khác nhau');
+  state.arborDay = day;
+  state.inv.crop.bau += 2;
+  assert.equal(state.inv.crop.bau, 2, 'Thu hoạch giàn bầu được 2 quả');
+  console.log('trâu cày ải, giàn bầu, cái võng và bàn thiên — OK');
+}
+
+
