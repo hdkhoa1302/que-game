@@ -44,7 +44,7 @@ let kR = riverK(0.45); // hệ số bề rộng sông theo mực nước (cập 
   const b = new M.B();
   b.cyl(0x6fb65a, [0, -0.25, 0], 58, 58.4, 0.5, 40);
   for (let i = 0; i < 60; i++) { const x = (rnd() - 0.5) * 100, z = (rnd() - 0.5) * 100; if (!keepOut(x, z)) b.ball(i % 2 ? 0x7cc467 : 0x5fa84d, [x, 0, z], [1 + rnd() * 2, 0.12, 1 + rnd() * 2], 6); }
-  for (let i = 0; i < 26; i++) { const an = (i / 26) * 6.283 + rnd() * 0.2, r = 38 + rnd() * 14, h = 4 + rnd() * 7; b.ball([0x5f9a5a, 0x6aa86a, 0x4f8a5a, 0x7a9a8a][i % 4], [Math.cos(an) * r, 0, Math.sin(an) * r], [h * 1.6, h * 0.55, h * 1.6], 7); } // đồi ở chân trời, không đi tới được
+  for (let i = 0; i < 28; i++) { const an = (i / 28) * 6.283 + rnd() * 0.2, r = 38 + rnd() * 12, h = 1.2 + rnd() * 1.5; b.ball([0x4f8a45, 0x5a9a4e, 0x3f7a38, 0x6a9a55][i % 4], [Math.cos(an) * r, 0, Math.sin(an) * r], [h * 2.5, h * 0.45, h * 2.5], 6); } // rặng cây rậm chân trời
   // đường đất: nhà → vườn → chợ
   [[-4, -2.6], [-3.4, -1.2], [-2.6, 0.4], [-1, 1], [0.6, 2.4], [1.8, 4.2], [3.2, 5.4], [3.6, 3.2], [3.0, 1.4], [2.4, -0.4]].forEach(([x, z]) => b.cyl(0xd2b27a, [x, 0.01, z], 0.6, 0.6, 0.03, 8));
   // hàng rào sân gà vịt
@@ -70,12 +70,16 @@ const fillRibbon = (g, k, lo, hi, y) => {
   g.attributes.position.needsUpdate = true; g.computeBoundingSphere();
 };
 const riverTex = (() => {
-  const c = document.createElement('canvas'); c.width = 64; c.height = 128; const g = c.getContext('2d'); g.fillStyle = '#58b2dc'; g.fillRect(0, 0, 64, 128);
-  for (let i = 0; i < 54; i++) { g.strokeStyle = `rgba(255,255,255,${0.06 + rnd() * 0.18})`; g.lineWidth = 1 + rnd() * 2; const x = rnd() * 64, y = rnd() * 128; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 6, y + 8 + rnd() * 26); g.stroke(); }
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#8e5932'; g.fillRect(0, 0, 64, 128); // nền nước đỏ phù sa Mê Kông
+  for (let i = 0; i < 54; i++) {
+    g.strokeStyle = `rgba(207,175,136,${0.08 + rnd() * 0.2})`; g.lineWidth = 1 + rnd() * 2;
+    const x = rnd() * 64, y = rnd() * 128; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (rnd() - 0.5) * 6, y + 8 + rnd() * 26); g.stroke();
+  }
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; return t;
 })();
 const mudG = ribbonGeo(false), waterG = ribbonGeo(true), zoneG = [ribbonGeo(false), ribbonGeo(false)];
-const waterMat = new THREE.MeshLambertMaterial({ map: riverTex, emissive: 0x0b2a40, side: THREE.DoubleSide });
+const waterMat = new THREE.MeshLambertMaterial({ map: riverTex, emissive: 0x241408, side: THREE.DoubleSide });
 scene.add(new THREE.Mesh(mudG, new THREE.MeshLambertMaterial({ color: 0x8a6a45, side: THREE.DoubleSide })), new THREE.Mesh(waterG, waterMat));
 const zone = new THREE.Group(); // dải nước nông sáng lên khi đặt lờ
 for (const g of zoneG) { const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x9be8a0, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide })); m.frustumCulled = false; zone.add(m); }
@@ -84,7 +88,7 @@ const shapeRiver = () => { fillRibbon(mudG, kR, -1.16, 1.16, 0.02); fillRibbon(w
 shapeRiver();
 const lake = new THREE.Group();
 {
-  const mud = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 24), new THREE.MeshLambertMaterial({ color: 0x8a6a45, flatShading: true })), wat = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 28), new THREE.MeshLambertMaterial({ color: 0x5aa6c8, emissive: 0x0b2a40, flatShading: true }));
+  const mud = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 24), new THREE.MeshLambertMaterial({ color: 0x8a6a45, flatShading: true })), wat = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.1, 28), new THREE.MeshLambertMaterial({ color: 0x825430, emissive: 0x241408, flatShading: true }));
   mud.scale.set(LAKE.rx * 1.12, 1, LAKE.rz * 1.12); mud.position.y = 0.02; wat.scale.set(LAKE.rx, 1, LAKE.rz); wat.position.y = 0.05;
   lake.add(mud, wat); lake.position.set(LAKE.x, 0, LAKE.z); scene.add(lake);
 }
