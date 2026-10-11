@@ -80,7 +80,7 @@ def _fib(n):
         z = (i + 0.5) / n; r = math.sqrt(max(0, 1 - z * z)); a = i * 2.399963
         out.append(Vector((r * math.cos(a), r * math.sin(a), z)))
     return out
-_DIRS = _fib(18)
+_DIRS = _fib(36)
 
 def export2(objs, path, ground=(), ao_dist=1.1, ao_str=0.62, grad=0.16):
     """Xuất tam giác + màu đỉnh đã bake AO + (nếu mềm) pháp tuyến. Trục Blender Z-up -> Three Y-up."""

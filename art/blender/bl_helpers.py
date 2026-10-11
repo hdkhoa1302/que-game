@@ -16,8 +16,7 @@ PAL = {
     'nuoc': 0x4aa8d8, 'bun': 0x8a6a45, 'dat': 0x7a5a38, 'sen_hong': 0xf3a6c0, 'sen_trang': 0xf9d0e0, 'luc_binh': 0x5fae45, 'luc_binh_hoa': 0xb487f0,
     # vật nuôi
     'trau': 0x4a4a52, 'trau_toi': 0x2f2f36, 'sung': 0xe8e0c8, 'mui': 0x6a5a5a,
-    # khác
-    'lua_xanh': 0x7fcf5a, 'lua_chin': 0xe8c24a, 'do': 0xd8433a, 'vang': 0xf6d23f, 'xam': 0x9a9a92, 'xam_toi': 0x5a5a60, 'trang': 0xffffff, 'cam': 0xf08a24, 'sat': 0x6a6a70,
+    'lua_xanh': 0x7fcf5a, 'lua_chin': 0xe8c24a, 'do': 0xd8433a, 'vang': 0xf6d23f, 'xam': 0x9a9a92, 'xam_toi': 0x5a5a60, 'trang': 0xffffff, 'cam': 0xf08a24, 'sat': 0x6a6a70, 'den': 0x1c1a1a, 'dua_qua': 0x6a4a22, 'tre_gia': 0x7f8f3a, 'tre_dot': 0x56622a,
 }
 
 def _lin(c):
