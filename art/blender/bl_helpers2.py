@@ -1,5 +1,6 @@
-# Mở rộng bl_helpers: bề mặt mềm (smooth + sharp theo góc), thân hull, tán cây gồ ghề, lá cong, bake AO vào màu đỉnh.
-exec(open('/private/tmp/claude-501/-Users-dangkhoahuynh-workplace-green/74cf7ad4-82b0-4bff-abab-5ac56d20dbe5/scratchpad/bl_helpers.py').read())
+import os
+_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() and not __file__.startswith('<') else os.path.join(os.getcwd(), 'art/blender')
+exec(open(os.path.join(_DIR, 'bl_helpers.py')).read())
 import random
 from mathutils.bvhtree import BVHTree
 

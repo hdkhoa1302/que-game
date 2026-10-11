@@ -1,7 +1,9 @@
 # Vật thể khai thác (cây, đá, cỏ, sinh vật ven sông): dựng chi tiết theo đặc điểm thật, bake AO. Chạy: blender -b --python bl_objects.py
 # Gốc mỗi mô hình ở (0,0,0), mặt đất z=0. Mỗi tên o_<kind> khớp OBJ trong src/data.js; dua_nuoc là dừa nước.
 import os, sys
-exec(open('/private/tmp/claude-501/-Users-dangkhoahuynh-workplace-green/74cf7ad4-82b0-4bff-abab-5ac56d20dbe5/scratchpad/bl_helpers2.py').read())
+import os
+_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.path.join(os.getcwd(), 'art/blender')
+exec(open(os.path.join(_DIR, 'bl_helpers2.py')).read())
 import math as _m
 PAL.update({'tre_non': 0xa9c24f, 'tre_gia': 0x7f8f3a, 'tre_dot': 0x56622a, 'set': 0xb8744a, 'set_toi': 0x8a5a3a, 'lau_hoa': 0xe9e4d4,
             'cuoi': 0x9a9a92, 'reu': 0x6f8f45, 'oc_vo': 0xd9c79a, 'oc_toi': 0x6b5a3a, 'dien_hoa': 0xf6c823, 'dua_qua': 0x6a4a22,

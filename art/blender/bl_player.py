@@ -1,6 +1,6 @@
-# Nhân vật: nón lá + áo bà ba + quần lụa đen, chân đất. Chạy: blender -b --python bl_player.py
 import os, sys
-exec(open('/private/tmp/claude-501/-Users-dangkhoahuynh-workplace-green/74cf7ad4-82b0-4bff-abab-5ac56d20dbe5/scratchpad/bl_helpers2.py').read())
+_DIR = os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.path.join(os.getcwd(), 'art/blender')
+exec(open(os.path.join(_DIR, 'bl_helpers2.py')).read())
 import math as _m
 PAL.update({'non_la': 0xf6e9b4, 'non_soc': 0xc9a85a, 'ba_ba': 0x2a2b31, 'ba_ba_toi': 0x4a4c56, 'quan_den': 0xe9e2cf, 'nut': 0xf4efe0, 'toc': 0x1c1a1a})
 OUT = os.environ.get('PLAYER_OUT', '/tmp/player.json')
