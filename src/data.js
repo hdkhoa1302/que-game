@@ -9,6 +9,7 @@ export const FISH = [
   { id: 'chinh', name: 'Lươn', icon: '🐍', price: 42, weight: 5, speed: 1.5 },
   { id: 'koi', name: 'Cá koi vàng', icon: '✨', price: 95, weight: 2, speed: 1.8 },
   { id: 'linh', name: 'Cá linh', icon: '🐟', price: 18, weight: 0, speed: 0.6, season: 3 }, // chỉ mùa nước nổi
+  { id: 'tom', name: 'Tôm càng xanh', icon: '🦐', price: 48, weight: 6, speed: 1.1 },
 ];
 
 export const CROPS = [
@@ -16,6 +17,7 @@ export const CROPS = [
   { id: 'muong', name: 'Rau muống', icon: '🌿', cost: 5, price: 11, grow: 2 * MIN, color: 0x2f9e52 },
   { id: 'cachua', name: 'Cà chua', icon: '🍅', cost: 9, price: 20, grow: 3.5 * MIN, color: 0xe5483a },
   { id: 'bi', name: 'Bí đỏ', icon: '🎃', cost: 16, price: 38, grow: 7 * MIN, color: 0xf08a24 },
+  { id: 'bau', name: 'Bầu hồ lô', icon: '🥒', cost: 12, price: 28, grow: 4 * MIN, color: 0x48a855 },
 ];
 
 export const EGGS = [
@@ -185,3 +187,4 @@ export const riverK = (level) => 0.75 + 0.35 * level; // sông co giãn theo m�
 // Ruộng lúa bên bờ đông: 2×2 thửa, mỗi thửa gặt được một lần mỗi mùa khô (liềm) ra thóc cho gà vịt
 export const PADDY = { x0: 17, x1: 30, z0: 3, z1: 12 };
 export const PLOTS = [0, 1, 2, 3].map((i) => { const w = (PADDY.x1 - PADDY.x0 - 0.6) / 2, h = (PADDY.z1 - PADDY.z0 - 0.6) / 2, x0 = PADDY.x0 + 0.3 + (i % 2) * (w + 0.0), z0 = PADDY.z0 + 0.3 + (i >> 1) * (h + 0.0); return { x0: x0 + 0.1, x1: x0 + w - 0.1, z0: z0 + 0.1, z1: z0 + h - 0.1 }; });
+export const isHighTide = (step) => { const sod = Math.floor(step) % DAY_STEPS; return sod >= 2 && sod <= 4; };

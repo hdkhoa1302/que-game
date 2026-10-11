@@ -146,3 +146,26 @@ console.log('OK: tất cả test đạt. dân số sau 12 năm game:', long.anim
   for (const r of ['go', 'da', 'soi', 'tre', 'rom', 'set', 'la']) assert.ok(west.has(r), `bờ tây phải có ${r} để bắc cầu`);
   console.log('ruộng lúa và nguồn tài nguyên bờ tây — OK');
 }
+
+// 13. Mekong items & gameplay: Ghe chợ nổi, xuồng ba lá, giống bầu, tôm càng xanh
+{
+  const { isHighTide, CROPS, FISH } = await import('./src/data.js');
+  const { unit } = await import('./src/panels.js');
+  assert.equal(isHighTide(0), false);
+  assert.equal(isHighTide(1), false);
+  assert.equal(isHighTide(2), true);
+  assert.equal(isHighTide(3), true);
+  assert.equal(isHighTide(4), true);
+  assert.equal(isHighTide(5), false);
+  assert.equal(isHighTide(10), true);
+
+  assert.ok(CROPS.find((c) => c.id === 'bau'), 'Phải có giống bầu hồ lô');
+  assert.ok(FISH.find((f) => f.id === 'tom'), 'Phải có tôm càng xanh');
+
+  const fish = { id: 'ro', price: 10 };
+  const basePrice = unit(fish, 1);
+  const traderPrice = unit(fish, 1.25);
+  assert.ok(traderPrice > basePrice, 'Giá bán thương lái phải có thưởng');
+  console.log('thương lái chợ nổi, giờ nước lớn và cây con Nam Bộ — OK');
+}
+

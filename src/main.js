@@ -221,6 +221,7 @@ const world = {
   near, approach,
   obj: (id) => OBJS[id], objAvail: (id) => OBJS[id].st === 'full', px: () => P.x, pz: () => P.z, face: (x, z) => { player.rotation.y = Math.atan2(x - P.x, z - P.z); },
   onBridge() { return !!S.builds.cau && P.x > 5.9 && onDock(P.x, P.z); },
+  crossRiver() { if (P.x < 8) { P.x = 13.5; P.z = 2.0; } else { P.x = 2.8; P.z = -1.0; } },
 };
 
 const player = M.playerB(); player.position.set(2.4, 0, 3.4); player.add(rodM); scene.add(player);
