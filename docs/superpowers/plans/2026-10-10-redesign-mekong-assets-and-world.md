@@ -58,10 +58,10 @@ b.box('go_sang', (0, -0.7, 0.24), (0.48, 0.22, 0.03))
 b.cyl('go_nau', (0.35, -0.2, 0.45), 0.02, 0.02, 1.4, 5, (25, 0, -35))
 b.box('go_sang', (0.7, 0.35, 0.18), (0.12, 0.35, 0.02), (25, 0, -35))
 ```
-- [ ] **Step 2: Chạy kiểm thử lệnh dựng trong Blender**
+- [x] **Step 2: Chạy kiểm thử lệnh dựng trong Blender**
 Run: `/Applications/Blender.app/Contents/MacOS/Blender -b ./art/mekong.blend --python art/blender/bl_organic.py`
 Expected: Exit code 0, tạo thành công mesh `xuong`.
-- [ ] **Step 3: Commit code vẽ lại xuồng ba lá**
+- [x] **Step 3: Commit code vẽ lại xuồng ba lá**
 Run: `git add art/blender/ && git commit -m "art: redraw authentic southern Vietnamese xuong ba la model"`
 
 ---
@@ -69,7 +69,7 @@ Run: `git add art/blender/ && git commit -m "art: redraw authentic southern Viet
 ### Task 2: Tinh chỉnh Ghe Chợ Nổi (`ghe_cho`) và Con Trâu (`trau`)
 **Files:** Modify: `art/blender/bl_organic.py`
 
-- [ ] **Step 1: Bổ sung Cây Bẹo và Cặp Mắt Ghe cho `ghe_cho`**
+- [x] **Step 1: Bổ sung Cây Bẹo và Cặp Mắt Ghe cho `ghe_cho`**
 Thêm cọc tre cao 2.2m dựng ở mũi ghe treo chùm chuối, dưa hấu; vẽ 2 mắt ghe hình elip viền đỏ ở hai bên mũi.
 ```python
 b.cyl('tre', (0, 1.3, 1.2), 0.03, 0.035, 2.3, 6, (-5, 0, 0))
@@ -78,12 +78,12 @@ for s in (-1, 1):
     b.ball('trang', (s * 0.48, 1.45, 0.45), (0.02, 0.08, 0.06), 6)
     b.ball('den', (s * 0.49, 1.48, 0.45), (0.015, 0.04, 0.04), 6)
 ```
-- [ ] **Step 2: Nâng cấp hình khối cơ bắp và da bùn cho Con Trâu (`trau`)**
+- [x] **Step 2: Nâng cấp hình khối cơ bắp và da bùn cho Con Trâu (`trau`)**
 Chuyển khối thân liền mạch, cặp sừng dẹt cánh ná uốn cong mềm mại về sau lưng, chân phủ lớp bùn khô.
-- [ ] **Step 3: Chạy render kiểm tra mô hình trâu và ghe**
+- [x] **Step 3: Chạy render kiểm tra mô hình trâu và ghe**
 Run: `/Applications/Blender.app/Contents/MacOS/Blender -b ./art/mekong.blend --python-expr "import bpy; assert 'ghe_cho' in bpy.data.objects and 'trau' in bpy.data.objects; print('OK')"`
 Expected: Output `OK`.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add art/blender/ && git commit -m "art: add cay beo, mat ghe to ghe_cho and refine trau model"`
 
 ---
@@ -91,19 +91,19 @@ Run: `git add art/blender/ && git commit -m "art: add cay beo, mat ghe to ghe_ch
 ### Task 3: Tinh chỉnh Cây Bần (`ban`) và Dừa Nước (`dua_nuoc`)
 **Files:** Modify: `art/blender/bl_organic.py`
 
-- [ ] **Step 1: Dựng Rừng Rễ Thở cọc búp măng cho Cây Bần**
+- [x] **Step 1: Dựng Rừng Rễ Thở cọc búp măng cho Cây Bần**
 Tạo chùm 25-30 cọc rễ thở nhọn hoắt chọc ngược từ lớp bùn quanh gốc bần, thân bần uốn nghiêng chồm ra mé nước, các đĩa tán lá mỏng xếp tầng rủ tha thướt.
 ```python
 for i in range(28):
     a = (i / 28.0) * 6.283; r = 0.6 + 0.8 * ((i * 7) % 5) / 4.0; h = 0.25 + 0.2 * ((i * 3) % 4) / 3.0
     b.cone('go_cu', (math.cos(a) * r, math.sin(a) * r, h / 2), 0.035, h, 5)
 ```
-- [ ] **Step 2: Dựng tàu lá Dừa Nước uốn lượn chữ S và quài dừa nước gai tròn**
+- [x] **Step 2: Dựng tàu lá Dừa Nước uốn lượn chữ S và quài dừa nước gai tròn**
 Tàu dừa nước xòe từ gốc bùn, vươn cao rồi cong oằn ngọn xuống mặt nước theo trọng lực; buồng dừa nước hình cầu gai nách lá.
-- [ ] **Step 3: Xuất mesh và kiểm tra số đa giác**
+- [x] **Step 3: Xuất mesh và kiểm tra số đa giác**
 Run: `/Applications/Blender.app/Contents/MacOS/Blender -b ./art/mekong.blend --python art/blender/bl_organic.py`
 Expected: Polygons của `ban` và `dua_nuoc` < 1200 polys mỗi vật thể.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add art/blender/ && git commit -m "art: add pneumatophore roots to ban tree and realistic fronds to dua nuoc"`
 
 ---
@@ -111,7 +111,7 @@ Run: `git add art/blender/ && git commit -m "art: add pneumatophore roots to ban
 ### Task 4: Nâng cấp Nhà Lá (`nha1`), Cầu Khỉ (`cau_khi`), Bến Tre (`ben_tre`) & Dựng Bàn Thiên (`ban_thien`)
 **Files:** Modify: `art/blender/bl_objects.py`, `art/blender/bl_scene.py`
 
-- [ ] **Step 1: Dựng Bàn Thờ Thông Thiên (Bàn Thiên)**
+- [x] **Step 1: Dựng Bàn Thờ Thông Thiên (Bàn Thiên)**
 Cột trụ cao 1.1m dựng trước sân, mặt bàn vuông 0.42m, bát nhang gốm men xanh và 3 chén nước con.
 ```python
 b = B('ban_thien')
@@ -120,12 +120,12 @@ b.box('xi_mang', (0, 0, 1.12), (0.42, 0.42, 0.04))
 b.cyl('men_xanh', (0, 0, 1.2), 0.06, 0.05, 0.1, 8)
 for dx in (-0.08, 0, 0.08): b.cyl('trang', (dx, 0.12, 1.16), 0.02, 0.015, 0.04, 6)
 ```
-- [ ] **Step 2: Nâng cấp mái lá dừa chằm 3 tầng cho `nha1` và cầu khỉ cọc chéo chữ X**
+- [x] **Step 2: Nâng cấp mái lá dừa chằm 3 tầng cho `nha1` và cầu khỉ cọc chéo chữ X**
 Thân cầu khỉ võng nhẹ 6cm theo đường cong tự nhiên, cọc trụ chữ X ghim vào bùn, một bên tay vịn gập ghềnh.
-- [ ] **Step 3: Chạy script dựng và kiểm tra đối tượng**
+- [x] **Step 3: Chạy script dựng và kiểm tra đối tượng**
 Run: `/Applications/Blender.app/Contents/MacOS/Blender -b ./art/mekong.blend --python art/blender/bl_objects.py`
 Expected: Tạo thành công các object với đầy đủ vertex color.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add art/blender/ && git commit -m "art: add ban_thien and refine southern house, monkey bridge, bamboo dock"`
 
 ---
@@ -133,15 +133,15 @@ Run: `git add art/blender/ && git commit -m "art: add ban_thien and refine south
 ### Task 5: Xuất toàn bộ Model ra `public/models/mekong2.json`
 **Files:** Modify: `art/blender/bl_helpers2.py`, Output: `public/models/mekong2.json`
 
-- [ ] **Step 1: Cập nhật danh sách export trong Blender**
+- [x] **Step 1: Cập nhật danh sách export trong Blender**
 Bổ sung các key: `xuong`, `ghe_cho`, `trau`, `gian_bau`, `vong`, `choi`, `luc_binh`, `ban_thien` vào `export2()`.
-- [ ] **Step 2: Chạy lệnh nướng AO (36 tia) và ghi file JSON**
+- [x] **Step 2: Chạy lệnh nướng AO (36 tia) và ghi file JSON**
 Run: `/Applications/Blender.app/Contents/MacOS/Blender -b ./art/mekong.blend --python-expr "from bl_helpers2 import export2; export2('public/models/mekong2.json')"`
 Expected: File sinh mới với dung lượng hợp lý (< 1.6MB).
-- [ ] **Step 3: Kiểm tra tính toàn vẹn của JSON bằng Node.js**
+- [x] **Step 3: Kiểm tra tính toàn vẹn của JSON bằng Node.js**
 Run: `node -e "const d = require('./public/models/mekong2.json'); ['xuong','ghe_cho','trau','ban_thien'].forEach(k => console.assert(d[k], 'Missing ' + k)); console.log('JSON Valid!')"`
 Expected: In ra `JSON Valid!`.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add public/models/mekong2.json && git commit -m "art: export refreshed mekong models to mekong2.json"`
 
 ---
@@ -149,14 +149,14 @@ Run: `git add public/models/mekong2.json && git commit -m "art: export refreshed
 ### Task 6: Đổi Bảng Màu Nước Phù Sa Mê Kông và Điều Chỉnh Chân Trời
 **Files:** Modify: `src/main.js:72-85`
 
-- [ ] **Step 1: Cập nhật Canvas Texture nước sông Mê Kông cuộn đỏ phù sa**
+- [x] **Step 1: Cập nhật Canvas Texture nước sông Mê Kông cuộn đỏ phù sa**
 Thay màu xanh `#58b2dc` bằng gradient phù sa: nền `#8e5932`, vân lượn `#b07448` và bọt ngà `#cfaf88`. Đổi `emissive` thành `0x241408`.
-- [ ] **Step 2: Xóa bỏ các khối đồi nhấp nhô chân trời không hợp địa hình châu thổ**
+- [x] **Step 2: Xóa bỏ các khối đồi nhấp nhô chân trời không hợp địa hình châu thổ**
 Thay thế 26 khối cầu đồi núi bằng rặng cây xa mờ mịt chân trời.
-- [ ] **Step 3: Kiểm tra bằng test script hoặc chạy thử Vite build**
+- [x] **Step 3: Kiểm tra bằng test script hoặc chạy thử Vite build**
 Run: `npm run build`
 Expected: Build thành công không có lỗi syntax.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add src/main.js && git commit -m "style: switch to alluvial red Mekong river water palette"`
 
 ---
@@ -164,15 +164,15 @@ Run: `git add src/main.js && git commit -m "style: switch to alluvial red Mekong
 ### Task 7: Thiết Lập Hệ Tọa Độ và Đặt 7 Item Biểu Trưng Vào Thế Giới Game
 **Files:** Modify: `src/models.js`, `src/main.js`
 
-- [ ] **Step 1: Thêm hàm tạo mesh trong `src/models.js`**
+- [x] **Step 1: Thêm hàm tạo mesh trong `src/models.js`**
 Khai báo các hàm nạp từ Blender:
 `boatB`, `traderB`, `buffaloB`, `arborB`, `hammockB`, `hutB`, `altarB`.
-- [ ] **Step 2: Đặt các item vào đúng tọa độ trong `src/main.js`**
+- [x] **Step 2: Đặt các item vào đúng tọa độ trong `src/main.js`**
 Tọa độ: Bàn thiên `(-3.8, -3.8)`, Võng `(-7.2, -2.5)`, Giàn bầu `(-7.5, 2.2)`, Xuồng `(3.6, -1.0)`, Ghe chợ `(9.5, 4.0)`, Chòi `(15.5, 2.5)`, Trâu `(18.5, 1.5)`. Thêm interaction hitboxes.
-- [ ] **Step 3: Kiểm tra rendering và hit boxes**
+- [x] **Step 3: Kiểm tra rendering và hit boxes**
 Run: `node -e "require('./src/models.js')"`
 Expected: Nạp mô hình không lỗi.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add src/models.js src/main.js && git commit -m "feat: position authentic Mekong items and hitboxes in world"`
 
 ---
@@ -180,14 +180,14 @@ Run: `git add src/models.js src/main.js && git commit -m "feat: position authent
 ### Task 8: Tích Hợp Cơ Chế Gameplay Cho Xuồng Ba Lá và Ghe Chợ Nổi
 **Files:** Modify: `src/data.js`, `src/game.js`
 
-- [ ] **Step 1: Bổ sung hành động Chèo Xuồng sang sông / Thăm lờ**
+- [x] **Step 1: Bổ sung hành động Chèo Xuồng sang sông / Thăm lờ**
 Chèo nhanh sang bờ Đông; thăm lờ cá nước sâu giữa dòng (thu cá lóc, cá chép to).
-- [ ] **Step 2: Bổ sung Thương Lái Ghe Chợ Nổi**
+- [x] **Step 2: Bổ sung Thương Lái Ghe Chợ Nổi**
 Giờ Nước Lớn (`sod >= 2 && sod <= 4`), ghe chợ cập bến. Chạm vào ghe mở menu bán nông sản giá thưởng (+25%) và mua giống cây lạ.
-- [ ] **Step 3: Viết test xác nhận logic thương lái**
+- [x] **Step 3: Viết test xác nhận logic thương lái**
 Run: `node test.js`
 Expected: Logic giá và con nước hoạt động chính xác.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add src/data.js src/game.js && git commit -m "feat: implement boat navigation and floating market trader mechanics"`
 
 ---
@@ -195,14 +195,14 @@ Run: `git add src/data.js src/game.js && git commit -m "feat: implement boat nav
 ### Task 9: Tích Hợp Cơ Chế Gameplay Cho Cái Võng, Giàn Bầu, Trâu & Chòi Ruộng
 **Files:** Modify: `src/data.js`, `src/game.js`, `src/sim.js`
 
-- [ ] **Step 1: Cơ chế Nằm Võng trưa hồi sức & Giàn Bầu hái quả**
+- [x] **Step 1: Cơ chế Nằm Võng trưa hồi sức & Giàn Bầu hái quả**
 Chạm vào `vong` tua nhanh trưa nắng gắt (`sod = 2..4`), hồi phục thể lực. Chạm `gian_bau` định kỳ hái bầu nấu canh giải nhiệt.
-- [ ] **Step 2: Cơ chế Dắt Trâu cày ải & Chòi Ruộng bờ đông**
+- [x] **Step 2: Cơ chế Dắt Trâu cày ải & Chòi Ruộng bờ đông**
 Trâu cày ruộng mùa mưa x2 sản lượng lúa. Chòi ruộng chứa hòm đồ tre phụ trợ khi khai thác rừng dừa tre.
-- [ ] **Step 3: Kiểm tra rule file size (< 400 dòng code mỗi file)**
+- [x] **Step 3: Kiểm tra rule file size (< 400 dòng code mỗi file)**
 Run: `wc -l src/data.js src/game.js src/sim.js src/main.js src/models.js`
 Expected: Mọi file đều < 400 dòng code.
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 Run: `git add src/data.js src/game.js src/sim.js && git commit -m "feat: implement hammock resting, arbor harvesting, and buffalo plowing"`
 
 ---
@@ -210,13 +210,13 @@ Run: `git add src/data.js src/game.js src/sim.js && git commit -m "feat: impleme
 ### Task 10: Kiểm Thử Toàn Diện và Tối Ưu Hóa
 **Files:** Test: Toàn bộ hệ thống WebGL, UI và vòng lặp gameplay.
 
-- [ ] **Step 1: Chạy build kiểm tra bundle và lỗi lint**
+- [x] **Step 1: Chạy build kiểm tra bundle và lỗi lint**
 Run: `npm run build`
 Expected: Build ra thư mục `dist/` thành công.
-- [ ] **Step 2: Chạy kiểm thử tự động**
+- [x] **Step 2: Chạy kiểm thử tự động**
 Run: `node test.js`
 Expected: Tất cả test suite pass 100%.
-- [ ] **Step 3: Commit hoàn tất kế hoạch**
+- [x] **Step 3: Commit hoàn tất kế hoạch**
 Run: `git commit --allow-empty -m "chore: complete mekong asset redesign and spatial placement plan"`
 
 ---
